@@ -10,7 +10,7 @@ go-mysql-transfer基于规则或者动态脚本完成数据解析和消息生成
 
 1、go-mysql-transfer将自己伪装为MySQL Slave向Master发送dump协议，获取binlog
 
-2、go-mysql-transfer更加配置的规则，或者lua脚本生成消息
+2、go-mysql-transfer根据的规则，或者lua脚本解析数据，生成消息
 
 3、将生成的消息批量发送给接收端
 
