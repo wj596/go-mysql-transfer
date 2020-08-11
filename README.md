@@ -57,6 +57,14 @@ go-mysql-transfer基于规则或者动态脚本完成数据解析和消息生成
 
 3、进入目录，执行 ‘ go build ’ 编译
 
+# 运行
+
+1、修改app.yml
+
+2、Windows直接运行 go-mysql-transfer.exe
+
+3、Linux执行 nohup go-mysql-transfer &
+
 # 使用说明
 
 [快速开始](https://github.com/wj596/gojob/wiki/faststart?_blank)
