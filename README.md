@@ -14,7 +14,6 @@ go-mysql-transfer基于规则或者动态脚本完成数据解析和消息生成
 
 3、将生成的消息批量发送给接收端
 
-
 # 功能特性
 
 - 不依赖其它组件，一键部署
@@ -64,6 +63,10 @@ go-mysql-transfer基于规则或者动态脚本完成数据解析和消息生成
 2、Windows直接运行 go-mysql-transfer.exe
 
 3、Linux执行 nohup go-mysql-transfer &
+
+
+全量数据初始化执行 ：go-mysql-transfer -stock
+
 
 # 使用说明
 
