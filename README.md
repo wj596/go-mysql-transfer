@@ -45,7 +45,7 @@ go-mysql-transfer基于规则或者动态脚本完成数据解析和消息生成
 
 **二进制安装包**
 
-直接下载对应操作系统的安装包, [点击下载](https://github.com/wj596/gojob/releases)
+直接下载安装包:  [点击下载](https://github.com/wj596/go-mysql-transfer/releases)
 
 **源码编译**
 
