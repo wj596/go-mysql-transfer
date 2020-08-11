@@ -70,10 +70,9 @@ go-mysql-transfer基于规则或者动态脚本完成数据解析和消息生成
 [二次开发](https://github.com/wj596/gojob/wiki/develop?_blank)
 
 
-# protocol and replication
+# 技术栈
 
-* [go-mysql](github.com/siddontang/go-mysql)
-
+*protocol and replication [go-mysql](github.com/siddontang/go-mysql)
 
 # 更新日志
 
