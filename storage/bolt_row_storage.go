@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"github.com/juju/errors"
 	"go.etcd.io/bbolt"
 
 	"go-mysql-transfer/util/byteutil"
@@ -39,23 +40,43 @@ func (s *BoltRowStorage) BatchAdd(list [][]byte) {
 	})
 }
 
-func (s *BoltRowStorage) List() (map[uint64][]byte, error) {
-	ret := make(map[uint64][]byte)
+func (s *BoltRowStorage) IdList() ([][]byte, error) {
+	ls := make([][]byte, 0)
 	err := _bolt.View(func(tx *bbolt.Tx) error {
 		bt := tx.Bucket(_rowRequestBucket)
 		cursor := bt.Cursor()
-		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-			ret[byteutil.BytesToUint64(k)] = v
+		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
+			ls = append(ls, k)
 		}
 		return nil
 	})
 
-	return ret, err
+	return ls, err
 }
 
-func (s *BoltRowStorage) Delete(key uint64) error {
+func (s *BoltRowStorage) Get(key []byte) ([]byte, error) {
+	var entity []byte
+	err := _bolt.View(func(tx *bbolt.Tx) error {
+		bt := tx.Bucket(_rowRequestBucket)
+		data := bt.Get(key)
+		if data == nil {
+			return errors.NotFoundf("Row")
+		}
+
+		entity = data
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return entity, nil
+}
+
+func (s *BoltRowStorage) Delete(key []byte) error {
 	return _bolt.Update(func(tx *bbolt.Tx) error {
 		bt := tx.Bucket(_rowRequestBucket)
-		return bt.Delete(byteutil.Uint64ToBytes(key))
+		return bt.Delete(key)
 	})
 }

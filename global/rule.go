@@ -28,7 +28,7 @@ const (
 	ValEncoderJson     = "json"
 	ValEncoderKVCommas = "kv-commas"
 	ValEncoderVCommas  = "v-commas"
-	LeftBrace          = "{+{-{"
+	LeftBrace          = "${"
 	RightBrace         = "}-}+}"
 )
 
@@ -271,13 +271,12 @@ func (s *Rule) buildPaddingMap() error {
 			}
 		}
 	} else { // Format
-		reg := regexp.MustCompile("\\{[^\\}]+\\}")
+		reg := regexp.MustCompile("\\${[^\\}]+\\}")
 		if reg != nil {
 			temps := reg.FindAllString(s.ValueFormatter, -1)
 			for _, temp := range temps {
-				str := strings.ReplaceAll(temp, "{", "")
+				str := strings.ReplaceAll(temp, "${", "")
 				str = strings.ReplaceAll(str, "}", "")
-
 				columnName := strings.ToUpper(str)
 				column, index := s.TableColumn(columnName)
 				if index < 0 {
@@ -454,17 +453,14 @@ func (s *Rule) initRocketmqConfig() error {
 }
 
 func (s *Rule) rewriteValFormat(format string) string {
-	temp := format
-	for _, c := range temp {
-		if string(c) == "{" {
-			temp += LeftBrace
-		} else if string(c) == "}" {
+	var temp string
+	for _, c := range format {
+		if string(c) == "}" {
 			temp += RightBrace
 		} else {
 			temp += string(c)
 		}
 	}
-
 	return temp
 }
 

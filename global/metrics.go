@@ -15,31 +15,24 @@ const (
 )
 
 var (
-	applicationState = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "application_state",
-			Help: "The application running state: 0=stopped, 1=ok",
-		},
-	)
-
-	transferState = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "transfer_state",
-			Help: "The transfer running state: 0=stopped, 1=ok",
-		},
-	)
-
 	leaderState = promauto.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "leader_state",
+			Name: "transfer_leader_state",
 			Help: "The cluster leader state: 0=false, 1=true",
 		},
 	)
 
 	destinationState = promauto.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "destination_state",
+			Name: "transfer_destination_state",
 			Help: "The destination running state: 0=stopped, 1=ok",
+		},
+	)
+
+	transferDelay = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "transfer_delay",
+			Help: "The transfer slave lag",
 		},
 	)
 
@@ -65,18 +58,6 @@ var (
 	)
 )
 
-func SetApplicationState(state int) {
-	if _config.EnableExporter {
-		applicationState.Set(float64(state))
-	}
-}
-
-func SetTransferState(state int) {
-	if _config.EnableExporter {
-		transferState.Set(float64(state))
-	}
-}
-
 func SetLeaderState(state int) {
 	if _config.EnableExporter {
 		leaderState.Set(float64(state))
@@ -86,6 +67,12 @@ func SetLeaderState(state int) {
 func SetDestinationState(state int) {
 	if _config.EnableExporter {
 		destinationState.Set(float64(state))
+	}
+}
+
+func SetTransferDelay(delay uint32) {
+	if _config.EnableExporter {
+		transferDelay.Set(float64(delay))
 	}
 }
 

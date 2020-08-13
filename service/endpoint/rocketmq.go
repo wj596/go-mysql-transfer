@@ -51,8 +51,12 @@ func newRocketmqEndpoint(c *global.Config) *RocketmqEndpoint {
 	return r
 }
 
-func (s *RocketmqEndpoint) Ping() error {
+func (s *RocketmqEndpoint) Start() error {
 	return s.client.Start()
+}
+
+func (s *RocketmqEndpoint) Ping() error {
+	return nil
 }
 
 func (s *RocketmqEndpoint) Consume(rows []*global.RowRequest) {
@@ -146,7 +150,7 @@ func (s *RocketmqEndpoint) doConsume(rows []*global.RowRequest) ([]*primitive.Me
 					Body:  respond.Msg,
 				}
 
-				global.Debug("stock consume", m)
+				global.RocketmqRespondPool.Put(respond)
 
 				ms = append(ms, m)
 			}
@@ -155,8 +159,6 @@ func (s *RocketmqEndpoint) doConsume(rows []*global.RowRequest) ([]*primitive.Me
 				Topic: rule.RocketmqTopic,
 				Body:  encodeByteArrayValue(rule.ValueEncoder, kvm),
 			}
-
-			global.Debug("stock consume", m)
 
 			ms = append(ms, m)
 		}
@@ -173,22 +175,29 @@ func (s *RocketmqEndpoint) StartRetryTask() {
 			if _rowCache.Size() == 0 {
 				continue
 			}
-			//if err := s.Ping(); err != nil {
-			//	continue
-			//}
+
 			logutil.Infof("重试队列有 %d条数据", _rowCache.Size())
-			list, err := _rowCache.List()
+			ids, err := _rowCache.IdList()
 			if err != nil {
 				logutil.Errorf(err.Error())
 				continue
 			}
 
-			for k, v := range list {
+			var data []byte
+			for _, id := range ids {
+				var err error
+				data, err = _rowCache.Get(id)
+				if err != nil {
+					logutil.Warn(err.Error())
+					_rowCache.Delete(id)
+					continue
+				}
+
 				var cached global.RowRequest
-				err = msgpack.Unmarshal(v, &cached)
+				err = msgpack.Unmarshal(data, &cached)
 				if err != nil {
 					logutil.Errorf(err.Error())
-					_rowCache.Delete(k)
+					_rowCache.Delete(data)
 					continue
 				}
 
@@ -197,8 +206,8 @@ func (s *RocketmqEndpoint) StartRetryTask() {
 					break
 				}
 
-				logutil.Info("数据重试成功")
-				_rowCache.Delete(k)
+				logutil.Infof("数据重试成功,还有%d 条数据等待重试", _rowCache.Size())
+				_rowCache.Delete(data)
 			}
 		}
 	}()
@@ -222,6 +231,9 @@ func (s *RocketmqEndpoint) doRetry(row *global.RowRequest) error {
 				Topic: respond.Topic,
 				Body:  respond.Msg,
 			}
+
+			global.RocketmqRespondPool.Put(respond)
+
 			_, err = s.client.SendSync(context.Background(), msg)
 			if err != nil {
 				logutil.Error(err.Error())

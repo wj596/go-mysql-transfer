@@ -52,10 +52,9 @@ func DoRocketmqOps(input map[string]interface{}, rule *global.Rule) ([]*global.R
 
 	list := make([]*global.RocketmqRespond, 0, vls.Len())
 	vls.ForEach(func(k lua.LValue, v lua.LValue) {
-		resp := &global.RocketmqRespond{
-			Msg:   decodeByteArray(k),
-			Topic: decodeString(v),
-		}
+		resp := global.RocketmqRespondPool.Get().(*global.RocketmqRespond)
+		resp.Msg = decodeByteArray(k)
+		resp.Topic = decodeString(k)
 		list = append(list, resp)
 	})
 

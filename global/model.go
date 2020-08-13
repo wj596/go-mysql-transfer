@@ -1,6 +1,9 @@
 package global
 
-import "github.com/siddontang/go-mysql/schema"
+import (
+	"github.com/siddontang/go-mysql/schema"
+	"sync"
+)
 
 type RowRequest struct {
 	RuleKey string
@@ -30,4 +33,16 @@ type Padding struct {
 	Column      *schema.TableColumn
 	ColumnName  string
 	ColumnIndex int
+}
+
+var RedisRespondPool = sync.Pool{
+	New: func() interface{} {
+		return new(RedisRespond)
+	},
+}
+
+var RocketmqRespondPool = sync.Pool{
+	New: func() interface{} {
+		return new(RocketmqRespond)
+	},
 }

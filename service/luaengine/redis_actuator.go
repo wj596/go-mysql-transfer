@@ -97,23 +97,21 @@ func DoRedisOps(input map[string]interface{}, rule *global.Rule) ([]*global.Redi
 	nest := lua.LVAsBool(L.GetGlobal(_globalNEST))
 	ls := make([]*global.RedisRespond, 0, vls.Len())
 	vls.ForEach(func(k lua.LValue, v lua.LValue) {
-		var res *global.RedisRespond
+		resp := global.RedisRespondPool.Get().(*global.RedisRespond)
 		if nest {
 			key := L.GetTable(v, lua.LString("key"))
 			field := L.GetTable(v, lua.LString("field"))
 			val := L.GetTable(v, lua.LString("val"))
-			res = &global.RedisRespond{
-				Key:   decodeString(key),
-				Field: decodeString(field),
-				Val:   decodeValue(val),
-			}
+			resp.Key = decodeString(key)
+			resp.Field = decodeString(field)
+			resp.Val = decodeValue(val)
 		} else {
-			res = &global.RedisRespond{
-				Key: decodeString(k),
-				Val: decodeValue(v),
-			}
+			resp.Key = decodeString(k)
+			resp.Field = ""
+			resp.Val = decodeValue(v)
 		}
-		ls = append(ls, res)
+
+		ls = append(ls, resp)
 	})
 
 	return ls, nil

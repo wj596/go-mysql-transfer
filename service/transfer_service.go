@@ -18,12 +18,14 @@ import (
 	"go-mysql-transfer/util/logutil"
 )
 
+const _metricsTaskInterval = 10
+
 type TransferService struct {
 	config          *global.Config
 	canal           *canal.Canal
 	positionStorage storage.PositionStorage
 
-	endpoint endpoint.Service
+	endpoint endpoint.Endpoint
 	handler  *handler
 
 	listenerStarted atomic.Bool
@@ -43,8 +45,8 @@ func (s *TransferService) initialize() error {
 	}
 
 	// 初始化 endpoint
-	_endpoint := endpoint.NewEndpointService(s.config)
-	if err := _endpoint.Ping(); err != nil {
+	_endpoint := endpoint.NewEndpoint(s.config)
+	if err := _endpoint.Start(); err != nil {
 		return errors.Trace(err)
 	}
 	global.SetDestinationState(global.MetricsStateOK)
@@ -82,14 +84,12 @@ func (s *TransferService) run() error {
 	logutil.BothInfof("transfer run from pos %s %d", current.Name, current.Pos)
 
 	s.running.Store(true)
-	global.SetTransferState(global.MetricsStateOK)
 	if err := s.canal.RunFrom(current); err != nil {
 		logutil.Errorf("start transfer err %v", err)
 		return errors.Trace(err)
 	}
 
 	s.running.Store(false)
-	global.SetTransferState(global.MetricsStateNO)
 	logutil.Info("Canal is Closed")
 	return nil
 }
@@ -107,7 +107,6 @@ func (s *TransferService) Pause() {
 		logutil.BothInfof("transfer paused !!!")
 		s.canal.Close()
 		s.canal = nil
-		global.SetTransferState(global.MetricsStateNO)
 		s.running.Store(false)
 	}
 }
@@ -128,7 +127,6 @@ func (s *TransferService) rerun() {
 	s.initCanal()
 	s.initDumper()
 	s.canal.SetEventHandler(s.handler)
-	global.SetTransferState(global.MetricsStateOK)
 	s.running.Store(true)
 
 	current, _ := s.positionStorage.Get()
@@ -294,7 +292,7 @@ func (s *TransferService) updateRule(schema, table string) error {
 }
 
 func (s *TransferService) startMetricsTask() {
-	ticker := time.NewTicker(6 * time.Second)
+	ticker := time.NewTicker(_metricsTaskInterval * time.Second)
 	go func() {
 		for {
 			<-ticker.C
@@ -303,6 +301,8 @@ func (s *TransferService) startMetricsTask() {
 			} else {
 				global.SetDestinationState(global.MetricsStateOK)
 			}
+
+			global.SetTransferDelay(s.canal.GetDelay())
 		}
 	}()
 }

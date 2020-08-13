@@ -38,8 +38,8 @@ func main() {
 	n := runtime.GOMAXPROCS(runtime.NumCPU())
 	log.Println(fmt.Sprintf("GOMAXPROCS :%d", n))
 
-	stockFlag = true
-	cfgPath = "D:\\stock\\app.yml"
+	//cfgPath = "D:\\transfer\\app.yml"
+	//stockFlag  = true
 
 	err := service.InitApplication(cfgPath)
 	if err != nil {
@@ -62,7 +62,6 @@ func main() {
 	}
 
 	global.StartMonitor()
-	global.SetApplicationState(global.MetricsStateOK)
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan,
@@ -82,7 +81,6 @@ func main() {
 	log.Printf("Application Stop，Signal: %s \n", sig.String())
 
 	service.CloseApplication()
-	global.SetApplicationState(global.MetricsStateNO)
 }
 
 func usage() {

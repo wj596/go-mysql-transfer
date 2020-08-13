@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"encoding/json"
+	"go-mysql-transfer/util/stringutil"
 	"strings"
 	"time"
 
@@ -18,7 +19,8 @@ const _retryInterval = 30
 
 var _rowCache *storage.BoltRowStorage
 
-type Service interface {
+type Endpoint interface {
+	Start() error
 	Ping() error
 	Consume([]*global.RowRequest)
 	Stock([]*global.RowRequest) int
@@ -26,7 +28,7 @@ type Service interface {
 	Close()
 }
 
-func NewEndpointService(c *global.Config) Service {
+func NewEndpoint(c *global.Config) Endpoint {
 	_rowCache = &storage.BoltRowStorage{}
 
 	if c.IsRedis() {
@@ -123,12 +125,36 @@ func convertColumnData(value interface{}, col *schema.TableColumn, rule *global.
 	return value
 }
 
-func encodeStringValue(encode string, kv map[string]interface{}) string {
+func encodeStringValue(rule *global.Rule, kv map[string]interface{}) string {
 	var val string
-	switch encode {
+	if rule.ValueFormatter != "" {
+		val = rule.ValueFormatter
+		for k, v := range kv {
+			old := global.LeftBrace + k + global.RightBrace
+			new := stringutil.ToString(v)
+			val = strings.ReplaceAll(val, old, new)
+		}
+
+		return val
+	}
+
+	switch rule.ValueEncoder {
 	case global.ValEncoderJson:
 		data, _ := json.Marshal(kv)
 		val = string(data)
+	case global.ValEncoderKVCommas:
+		var ls []string
+		for k, v := range kv {
+			str := stringutil.ToString(k) + "=" + stringutil.ToString(v)
+			ls = append(ls, str)
+		}
+		val = strings.Join(ls, ",")
+	case global.ValEncoderVCommas:
+		var ls []string
+		for _, v := range kv {
+			ls = append(ls, stringutil.ToString(v))
+		}
+		val = strings.Join(ls, ",")
 	}
 
 	return val
@@ -139,6 +165,19 @@ func encodeByteArrayValue(encode string, kv map[string]interface{}) []byte {
 	case global.ValEncoderJson:
 		data, _ := json.Marshal(kv)
 		return data
+	case global.ValEncoderKVCommas:
+		var ls []string
+		for k, v := range kv {
+			str := stringutil.ToString(k) + "=" + stringutil.ToString(v)
+			ls = append(ls, str)
+		}
+		return []byte(strings.Join(ls, ","))
+	case global.ValEncoderVCommas:
+		var ls []string
+		for _, v := range kv {
+			ls = append(ls, stringutil.ToString(v))
+		}
+		return []byte(strings.Join(ls, ","))
 	}
 
 	return nil

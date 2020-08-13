@@ -13,6 +13,7 @@ require (
 	github.com/onsi/ginkgo v1.14.0 // indirect
 	github.com/pingcap/tidb v1.1.0-beta.0.20191115021711-b274eb2079dc
 	github.com/prometheus/client_golang v1.0.0
+	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
 	github.com/samuel/go-zookeeper v0.0.0-20200724154423-2164a8ac840e
 	github.com/satori/go.uuid v1.2.0
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07

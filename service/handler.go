@@ -1,13 +1,15 @@
 package service
 
 import (
+	"time"
+
 	"github.com/juju/errors"
 	"github.com/siddontang/go-mysql/canal"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
+
 	"go-mysql-transfer/global"
 	"go-mysql-transfer/util/logutil"
-	"time"
 )
 
 type handler struct {
