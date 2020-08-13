@@ -2,9 +2,9 @@
 
 # 项目简介
 
-go-mysql-transfer是一个能实时读取MySQL二进制日志binlog，并生成指定格式消息，发送给redis、mongodb、elasticsearch、rabbitmq、kafka、rocketmq、NSQ、HTTP接口的应用程序，实现数据实时增量同步。
+go-mysql-transfer是一个能实时读取MySQL二进制日志binlog，并生成指定格式的消息，发送给redis、mongodb、elasticsearch、rabbitmq、kafka、rocketmq、NSQ、HTTP接口的应用程序，实现数据实时增量同步。
 
-go-mysql-transfer基于规则或者动态脚本完成数据解析和消息生成逻辑，无需用户编码，简洁高效、稳定可靠。
+go-mysql-transfer基于规则或动态脚本完成数据解析和消息生成逻辑，无需用户编码，简洁高效、稳定可靠。
 
 # 实现原理
 
@@ -36,9 +36,9 @@ go-mysql-transfer基于规则或者动态脚本完成数据解析和消息生成
 | ---------- | ---------- | ------------ | ------------------------------------------------------------ |
 | 开发语言   | Java       | Python       | Golang                                                       |
 | HA         | 支持       | 支持         | 支持                                                         |
-| 数据落地   | 定制(开发) | Kafka等      | redis、mongodb、elasticsearch、rabbitmq、<br />kafka、rocketmq、NSQ、HTTP接口等 |
+| 接收端   | 编码定制 | Kafka等      | redis、mongodb、elasticsearch、rabbitmq、<br />kafka、rocketmq、NSQ、HTTP接口等 |
 | 数据初始化 | 不支持     | 支持         | 支持                                                         |
-| 数据格式   | 定制(开发) | json（固定） | 规则<br />lua脚本     
+| 数据格式   | 编码定制 | json（固定） | 规则 (固定)<br />lua脚本 (定制)     
 
 # 安装包
 
@@ -56,6 +56,10 @@ go-mysql-transfer基于规则或者动态脚本完成数据解析和消息生成
 
 3、进入目录，执行 ‘ go build ’ 编译
 
+# 全量数据初始化
+
+go-mysql-transfer -stock
+
 # 运行
 
 1、修改app.yml
@@ -64,26 +68,16 @@ go-mysql-transfer基于规则或者动态脚本完成数据解析和消息生成
 
 3、Linux执行 nohup go-mysql-transfer &
 
-
-全量数据初始化执行 ：go-mysql-transfer -stock
-
-
 # 使用说明
 
-[快速开始](https://github.com/wj596/gojob/wiki/faststart?_blank)
+[go-mysql-transfer实现详解](https://github.com/wj596/gojob/wiki/faststart?_blank)
 
-[单机部署](https://github.com/wj596/gojob/wiki/standalone?_blank)
-
-[集群部署](https://github.com/wj596/gojob/wiki/cluster?_blank)
-
-[作业配置](https://github.com/wj596/gojob/wiki/deploy?_blank)
-
-[二次开发](https://github.com/wj596/gojob/wiki/develop?_blank)
+[go-mysql-transfer同步数据到Redis操作说明](https://github.com/wj596/gojob/wiki/standalone?_blank)
 
 
 # 技术栈
 
-*protocol and replication [go-mysql](github.com/siddontang/go-mysql)
+* protocol and replication [go-mysql](github.com/siddontang/go-mysql)
 
 # 更新日志
 
