@@ -2,7 +2,7 @@
 
 # 项目简介
 
-go-mysql-transfer是一个能实时读取MySQL二进制日志binlog，并生成指定格式的消息，发送给redis、mongodb、elasticsearch、rabbitmq、kafka、rocketmq、NSQ、HTTP接口的应用程序，实现数据实时增量同步。
+go-mysql-transfer是一个能实时读取MySQL二进制日志binlog，并生成指定格式的消息，发送给Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、NSQ、HTTP接口的应用程序，实现数据实时增量同步。
 
 go-mysql-transfer基于规则或动态脚本完成数据解析和消息生成逻辑，无需用户编码，简洁高效、稳定可靠。
 
@@ -18,7 +18,7 @@ go-mysql-transfer基于规则或动态脚本完成数据解析和消息生成逻
 
 - 不依赖其它组件，一键部署
 
-- 集成多种接收端，如：Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、NSQ、HTTP接口等
+- 集成多种接收端，如：Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、NSQ、HTTP等
 
 - 基于规则或者动态脚本进行数据解析和消息生成，方便扩展
 
@@ -70,10 +70,17 @@ go-mysql-transfer -stock
 
 # 使用说明
 
-[go-mysql-transfer实现详解](https://github.com/wj596/gojob/wiki/faststart?_blank)
+[go-mysql-transfer实现详解](https://www.jianshu.com/p/dce9160d298c?_blank)
 
-[go-mysql-transfer同步数据到Redis操作说明](https://github.com/wj596/gojob/wiki/standalone?_blank)
+[go-mysql-transfer增量同步数据到Redis操作说明](https://www.jianshu.com/p/c533659a1d83?_blank)
 
+go-mysql-transfer增量同步数据到MongoDB操作说明(待补充)
+go-mysql-transfer增量同步数据到Elasticsearch操作说明(待补充)
+go-mysql-transfer增量同步数据到RabbitMQ操作说明(待补充)
+go-mysql-transfer增量同步数据到Kafka操作说明(待补充)
+go-mysql-transfer增量同步数据到RocketMQ操作说明(待补充)
+go-mysql-transfer增量同步数据到NSQ操作说明(待补充)
+go-mysql-transfer增量同步数据到HTTP接口操作说明(待补充)
 
 # 技术栈
 
