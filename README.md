@@ -18,7 +18,7 @@ go-mysql-transfer基于规则或动态脚本完成数据解析和消息生成逻
 
 - 不依赖其它组件，一键部署
 
-- 集成多种接收端，如：redis、mongodb、elasticsearch、rabbitmq、kafka、rocketmq、NSQ、HTTP接口等
+- 集成多种接收端，如：Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、NSQ、HTTP接口等
 
 - 基于规则或者动态脚本进行数据解析和消息生成，方便扩展
 
@@ -36,7 +36,7 @@ go-mysql-transfer基于规则或动态脚本完成数据解析和消息生成逻
 | ---------- | ---------- | ------------ | ------------------------------------------------------------ |
 | 开发语言   | Java       | Python       | Golang                                                       |
 | HA         | 支持       | 支持         | 支持                                                         |
-| 接收端   | 编码定制 | Kafka等      | redis、mongodb、elasticsearch、rabbitmq、<br />kafka、rocketmq、NSQ、HTTP接口等 |
+| 接收端   | 编码定制 | Kafka等      | Redis、MongoDB、Elasticsearch、RabbitMQ、<br />Kafka、RocketMQ、NSQ、HTTP接口等 |
 | 数据初始化 | 不支持     | 支持         | 支持                                                         |
 | 数据格式   | 编码定制 | json（固定） | 规则 (固定)<br />lua脚本 (定制)     
 
