@@ -77,7 +77,16 @@ go-mysql-transfer -stock
 
 # 技术栈
 
-* protocol and replication [go-mysql](github.com/siddontang/go-mysql)
+* [go-mysql](github.com/siddontang/go-mysql)
+
+* [go-mysql-elasticsearch](https://github.com/siddontang/go-mysql-elasticsearch)
+
+* [go-redis](https://github.com/go-redis/redis)
+
+* [rocketmq-client-go](https://github.com/apache/rocketmq-client-go)
+
+感谢以上优秀的开源框架
+
 
 # 更新日志
 
