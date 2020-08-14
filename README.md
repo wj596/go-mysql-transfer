@@ -115,6 +115,6 @@ go-mysql-transfer增量同步数据到HTTP接口操作说明(待补充)
 
 # 更新日志
 
-**V1.0.0 Bate**
+**V1.0.0 Bate**1
 
-* 初始化提交Bate版本
+* 初始化提交Bate1版本
