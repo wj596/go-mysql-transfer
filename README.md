@@ -2,9 +2,9 @@
 
 # 项目简介
 
-go-mysql-transfer是一个能实时读取MySQL二进制日志binlog，并生成指定格式的消息，发送给Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、NSQ、HTTP接口的应用程序，实现数据实时增量同步。
+go-mysql-transfer是一个能解析MySQL二进制日志binlog，生成指定格式的消息，实时增量同步到Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、NSQ、HTTP接口等接收端的工具。
 
-go-mysql-transfer基于规则或动态脚本完成数据解析和消息生成逻辑，无需用户编码，简洁高效、稳定可靠。
+go-mysql-transfer基于规则或者Lua脚本实现数据解析、生成指定格式消息，无需用户编写客户端，简单易用、稳定高效。
 
 # 实现原理
 
@@ -20,24 +20,24 @@ go-mysql-transfer基于规则或动态脚本完成数据解析和消息生成逻
 
 - 集成多种接收端，如：Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、NSQ、HTTP等
 
-- 基于规则或者动态脚本进行数据解析和消息生成，方便扩展
+- 基于规则或者Lua脚本进行数据解析、生成指定格式的消息，方便扩展
 
 - 集成prometheus客户端，支持监控告警
 
-- 支持高可用集群，可选Zookeeper或Ectd
+- 支持高可用集群部署，可选Zookeeper或Ectd
 
 - 支持失败重试
 
-- 支持全量数据初始化
+- 支持全量数据初始化同步  
 
 # 与同类工具比较
 
-| 特色       | Canal      | mysql_stream | go-mysql-transfer                                            |
-| ---------- | ---------- | ------------ | ------------------------------------------------------------ |
-| 开发语言   | Java       | Python       | Golang                                                       |
-| HA         | 支持       | 支持         | 支持                                                         |
-| 接收端   | 编码定制 | Kafka等      | Redis、MongoDB、Elasticsearch、RabbitMQ、<br />Kafka、RocketMQ、NSQ、HTTP接口等 |
-| 数据初始化 | 不支持     | 支持         | 支持                                                         |
+| 特色       | Canal    | mysql_stream | go-mysql-transfer                                            |
+| ---------- | -------- | ------------ | ------------------------------------------------------------ |
+| 开发语言   | Java     | Python       | Golang                                                       |
+| HA         | 支持     | 支持         | 支持                                                         |
+| 接收端     | 编码定制 | Kafka等      | Redis、MongoDB、Elasticsearch、RabbitMQ、<br />Kafka、RocketMQ、NSQ、HTTP接口等 |
+| 数据初始化 | 不支持   | 支持         | 支持                                                         |
 | 数据格式   | 编码定制 | json（固定） | 规则 (固定)<br />lua脚本 (定制)     
 
 # 安装包
@@ -67,6 +67,18 @@ go-mysql-transfer -stock
 2、Windows直接运行 go-mysql-transfer.exe
 
 3、Linux执行 nohup go-mysql-transfer &
+
+
+
+**docker运行**
+
+1、拉取源码 ‘ go get -d github.com/wj596/go-mysql-transfer’
+
+2、修改配置文件 ‘ app.yml ’ 中相关配置
+
+3、构建镜像 ‘ docker image build -t go-mysql-transfer -f Dockerfile . ’
+
+4、运行 ‘ docker run -d --name go-mysql-transfer -p 9595:9595  go-mysql-transfer:latest ’
 
 # 使用说明
 
@@ -106,4 +118,3 @@ go-mysql-transfer增量同步数据到HTTP接口操作说明(待补充)
 **V1.0.0 Bate**
 
 * 初始化提交Bate版本
-
