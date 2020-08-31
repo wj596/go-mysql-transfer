@@ -43,7 +43,7 @@ go-mysql-transfer是一款MySQL实时、增量数据同步工具。能够实时�
 
 **二进制安装包**
 
-直接下载安装包:  [点击下载](https://github.com/wj596/go-mysql-transfer/releases)
+直接下载编译好的安装包:  [点击下载](https://github.com/wj596/go-mysql-transfer/releases)
 
 **源码编译**
 
@@ -60,6 +60,18 @@ go-mysql-transfer是一款MySQL实时、增量数据同步工具。能够实时�
 go-mysql-transfer -stock
 
 # 运行
+
+**开启MySQL的binlog**
+
+```
+#Linux在my.cnf文件
+#Windows在my.ini文件
+log-bin=mysql-bin # 开启 binlog
+binlog-format=ROW # 选择 ROW 模式
+server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer 的 slave_id 重复
+```
+
+**命令行运行**
 
 1、修改app.yml
 
