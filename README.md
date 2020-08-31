@@ -2,9 +2,23 @@
 
 # 项目简介
 
-go-mysql-transfer是一个能解析MySQL二进制日志binlog，生成指定格式的消息，实时增量同步到Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、NSQ、HTTP接口等接收端的工具。
+go-mysql-transfer是一款MySQL实时、增量数据同步工具。能够实时解析MySQL二进制日志binlog，并生成指定格式的消息，同步到接收端。
 
-go-mysql-transfer基于规则或者Lua脚本实现数据解析、生成指定格式消息，无需用户编写客户端，简单易用、稳定高效。
+# 功能特性
+
+- 不依赖其它组件，一键部署
+
+- 集成多种接收端，如：Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ，不需要再编写客户端，开箱即用
+
+- 内置丰富的数据解析、消息生成规则；支持Lua脚本扩展，以处理更复杂的数据逻辑
+
+- 集成prometheus客户端，支持监控告警
+
+- 支持高可用集群部署，可选Zookeeper或Ectd
+
+- 支持数据同步失败重试
+
+- 支持全量数据初始化同步  
 
 # 实现原理
 
@@ -14,21 +28,6 @@ go-mysql-transfer基于规则或者Lua脚本实现数据解析、生成指定格
 
 3、将生成的消息批量发送给接收端
 
-# 功能特性
-
-- 不依赖其它组件，一键部署
-
-- 集成多种接收端，如：Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、NSQ、HTTP等
-
-- 基于规则或者Lua脚本进行数据解析、生成指定格式的消息，方便扩展
-
-- 集成prometheus客户端，支持监控告警
-
-- 支持高可用集群部署，可选Zookeeper或Ectd
-
-- 支持失败重试
-
-- 支持全量数据初始化同步  
 
 # 与同类工具比较
 
@@ -36,9 +35,9 @@ go-mysql-transfer基于规则或者Lua脚本实现数据解析、生成指定格
 | ---------- | -------- | ------------ | ------------------------------------------------------------ |
 | 开发语言   | Java     | Python       | Golang                                                       |
 | HA         | 支持     | 支持         | 支持                                                         |
-| 接收端     | 编码定制 | Kafka等      | Redis、MongoDB、Elasticsearch、RabbitMQ、<br />Kafka、RocketMQ、NSQ、HTTP接口等 |
+| 接收端     | 编码定制 | Kafka等      | Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、<br />后续支持更多 |
 | 数据初始化 | 不支持   | 支持         | 支持                                                         |
-| 数据格式   | 编码定制 | json（固定） | 规则 (固定)<br />lua脚本 (定制)     
+| 数据格式   | 编码定制 | json（固定） | 规则 (固定)<br />Lua脚本 (定制)     
 
 # 安装包
 
