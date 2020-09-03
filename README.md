@@ -2,7 +2,7 @@
 
 # 项目简介
 
-go-mysql-transfer是一款MySQL实时、增量数据同步工具。能够实时解析MySQL二进制日志binlog，并生成指定格式的消息，同步到接收端。
+go-mysql-transfer是一款MySQL数据实时增量同步工具。能够实时解析MySQL二进制日志binlog，并生成指定格式的消息，同步到接收端。
 
 # 功能特性
 
@@ -97,19 +97,15 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 [go-mysql-transfer增量同步数据到Redis操作说明](https://www.jianshu.com/p/c533659a1d83?_blank)
 
-go-mysql-transfer增量同步数据到MongoDB操作说明(待补充)
+[go-mysql-transfer增量同步数据到MongoDB操作说明](https://www.jianshu.com/p/51124c9371f9?_blank)
 
-go-mysql-transfer增量同步数据到Elasticsearch操作说明(待补充)
+[go-mysql-transfer增量同步数据到Elasticsearch操作说明](?_blank)
 
-go-mysql-transfer增量同步数据到RabbitMQ操作说明(待补充)
+[go-mysql-transfer增量同步数据到RocketMQ操作说明](https://www.jianshu.com/p/18bb121bbf63?_blank)
 
-go-mysql-transfer增量同步数据到Kafka操作说明(待补充)
+[go-mysql-transfer增量同步数据到Kafka操作说明](https://www.jianshu.com/p/aec8e4c28c06?_blank)
 
-go-mysql-transfer增量同步数据到RocketMQ操作说明(待补充)
-
-go-mysql-transfer增量同步数据到NSQ操作说明(待补充)
-
-go-mysql-transfer增量同步数据到HTTP接口操作说明(待补充)
+[go-mysql-transfer增量同步数据到RabbitMQ操作说明](https://www.jianshu.com/p/ba5f1d3c75f2?_blank)
 
 # 技术栈
 
