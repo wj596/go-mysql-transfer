@@ -20,4 +20,3 @@ func NewElectionStorage(conf *global.Config) PositionStorage {
 
 	return nil
 }
-

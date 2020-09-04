@@ -18,4 +18,3 @@ func TestCheckIp(t *testing.T) {
 	fmt.Println(CheckIp("192.168.56"))
 	fmt.Println(CheckIp("192.168.56.300"))
 }
-

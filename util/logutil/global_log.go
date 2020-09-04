@@ -100,7 +100,7 @@ func Errorf(template string, args ...interface{}) {
 
 func BothInfof(template string, args ...interface{}) {
 	log.Println(fmt.Sprintf(template, args...))
-	if _globalLogger!=nil{
+	if _globalLogger != nil {
 		_globalLogger.Sugar().Infof(template, args...)
 	}
 }

@@ -11,5 +11,4 @@ func TestConvertGoFormat(t *testing.T) {
 
 	fmt.Println(ConvertGoFormat("yyyy-MM-dd"))
 
-
 }

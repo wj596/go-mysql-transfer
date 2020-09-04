@@ -20,6 +20,7 @@ package byteutil
 import (
 	"bytes"
 	"encoding/binary"
+	"github.com/pquerna/ffjson/ffjson"
 	"math"
 )
 
@@ -78,4 +79,12 @@ func ByteToFloat64(bytes []byte) float64 {
 	bits := binary.LittleEndian.Uint64(bytes)
 
 	return math.Float64frombits(bits)
+}
+
+func JsonBytes(v interface{}) []byte {
+	bytes, err := ffjson.Marshal(v)
+	if nil != err {
+		return nil
+	}
+	return bytes
 }

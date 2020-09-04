@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
-	"go.uber.org/atomic"
-
+	"log"
 	"regexp"
 	"sync"
 	"time"
 
 	"github.com/juju/errors"
 	"github.com/siddontang/go-mysql/canal"
+	"go.uber.org/atomic"
 
 	"go-mysql-transfer/global"
 	"go-mysql-transfer/service/endpoint"
@@ -73,8 +73,10 @@ func (s *TransferService) initialize() error {
 func (s *TransferService) run() error {
 	s.wg.Add(1)
 	s.handler.startRequestQueueListener()
-	s.startMetricsTask()
-	s.endpoint.StartRetryTask()
+
+	if s.config.IsExporterEnable() {
+		s.startMetricsTask()
+	}
 
 	current, err := s.positionStorage.Get()
 	if err != nil {
@@ -85,21 +87,15 @@ func (s *TransferService) run() error {
 
 	s.running.Store(true)
 	if err := s.canal.RunFrom(current); err != nil {
-		logutil.Errorf("start transfer err %v", err)
+		log.Println(fmt.Sprintf("start transfer : %v", err))
+		logutil.Errorf("start transfer : %v", err)
+		s.cancelFunc()
 		return errors.Trace(err)
 	}
 
 	s.running.Store(false)
 	logutil.Info("Canal is Closed")
 	return nil
-}
-
-func (s *TransferService) CtxDone() <-chan struct{} {
-	return s.ctx.Done()
-}
-
-func (s *TransferService) CtxErr() error {
-	return s.ctx.Err()
 }
 
 func (s *TransferService) Pause() {
@@ -224,9 +220,10 @@ func (s *TransferService) initRules() error {
 			}
 		}
 		if len(tableMata.PKColumns) > 1 {
-			rule.CompositeKey = true // 组合主键
+			rule.IsCompositeKey = true // 组合主键
 		}
 		rule.TableInfo = tableMata
+		rule.TableColumnSize = len(tableMata.Columns)
 
 		if err := rule.Initialize(); err != nil {
 			return errors.Trace(err)
@@ -277,10 +274,11 @@ func (s *TransferService) updateRule(schema, table string) error {
 		}
 
 		if len(tableInfo.PKColumns) > 1 {
-			rule.CompositeKey = true
+			rule.IsCompositeKey = true
 		}
 
 		rule.TableInfo = tableInfo
+		rule.TableColumnSize = len(tableInfo.Columns)
 
 		err = rule.AfterUpdateTableInfo()
 		if err != nil {

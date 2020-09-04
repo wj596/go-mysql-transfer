@@ -54,6 +54,14 @@ func InitApplication(cfgPath string) error {
 	return nil
 }
 
+func CtxDone() <-chan struct{} {
+	return _transferServiceIns.ctx.Done()
+}
+
+func CtxErr() error {
+	return _transferServiceIns.ctx.Err()
+}
+
 func TransferServiceIns() *TransferService {
 	return _transferServiceIns
 }

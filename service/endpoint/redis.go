@@ -3,18 +3,23 @@ package endpoint
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/go-redis/redis"
+	"github.com/pingcap/errors"
+	"github.com/siddontang/go-mysql/canal"
 	"github.com/vmihailenco/msgpack"
 
 	"go-mysql-transfer/global"
 	"go-mysql-transfer/service/luaengine"
+	"go-mysql-transfer/storage"
 	"go-mysql-transfer/util/logutil"
 	"go-mysql-transfer/util/stringutil"
 )
 
 type RedisEndpoint struct {
+	config *global.Config
+	cached *storage.BoltRowStorage
+
 	isCluster bool
 	client    *redis.Client
 	cluster   *redis.ClusterClient
@@ -22,6 +27,9 @@ type RedisEndpoint struct {
 
 func newRedisEndpoint(c *global.Config) *RedisEndpoint {
 	r := &RedisEndpoint{}
+	r.config = c
+	r.cached = &storage.BoltRowStorage{}
+
 	list := strings.Split(c.RedisAddr, ",")
 	if len(list) == 1 {
 		r.client = redis.NewClient(&redis.Options{
@@ -76,387 +84,327 @@ func (s *RedisEndpoint) pipe() redis.Pipeliner {
 }
 
 func (s *RedisEndpoint) Consume(rows []*global.RowRequest) {
+	if err := s.doRetryTask(); err != nil {
+		logutil.Error(err.Error())
+		pushFailedRows(rows, s.cached)
+		return
+	}
+
+	expect := true
 	pipe := s.pipe()
 	for _, row := range rows {
-		rule, ignore := ignoreRow(row.RuleKey, len(row.Row))
-		if ignore {
+		rule, _ := global.RuleIns(row.RuleKey)
+		if rule.TableColumnSize != len(row.Row) {
+			logutil.Warnf("%s schema mismatching", row.RuleKey)
 			continue
 		}
 
-		switch row.Action {
-		case global.InsertAction:
-			global.IncInsertNum(row.RuleKey)
-		case global.UpdateAction:
-			global.IncUpdateNum(row.RuleKey)
-		case global.DeleteAction:
-			global.IncDeleteNum(row.RuleKey)
-		}
+		exportActionNum(row.Action, row.RuleKey)
 
 		if rule.LuaNecessary() {
-			s.doLuaConsume(row, rule, pipe)
+			kvm := keyValueMap(row, rule, true)
+			ls, err := luaengine.DoRedisOps(kvm, row.Action, rule)
+			if err != nil {
+				logutil.Errorf("lua 脚本执行失败 : %s ", errors.ErrorStack(err))
+				expect = false
+				break
+			}
+			for _, resp := range ls {
+				s.preparePipe(resp, pipe)
+
+				logutil.Infof("action: %s, structure: %s ,key: %s ,field: %s, value: %v",
+					resp.Action, global.StructureName(resp.Structure), resp.Key, resp.Field, resp.Val)
+
+				global.RedisRespondPool.Put(resp)
+			}
 		} else {
-			s.doRuleConsume(row, rule, pipe)
+			resp := s.ruleRespond(row, rule)
+			s.preparePipe(resp, pipe)
+
+			logutil.Infof("action: %s, structure: %s ,key: %s ,field: %s, value: %v",
+				resp.Action, global.StructureName(resp.Structure), resp.Key, resp.Field, resp.Val)
+
+			global.RedisRespondPool.Put(resp)
 		}
+
+		global.RowRequestPool.Put(row)
 	}
 
 	_, err := pipe.Exec()
 	if err != nil {
-		logutil.Error(err.Error())
-		logutil.Infof("%d 条数据处理失败，插入重试队列", len(rows))
-		saveFailedRows(rows)
+		logutil.Error(errors.ErrorStack(err))
+		expect = false
+	}
+
+	if !expect {
+		pushFailedRows(rows, s.cached)
 	} else {
 		logutil.Infof("处理完成 %d 条数据", len(rows))
 	}
 }
 
-func (s *RedisEndpoint) Stock(rows []*global.RowRequest) int {
+func (s *RedisEndpoint) Stock(rows []*global.RowRequest) int64 {
 	pipe := s.pipe()
-
 	for _, row := range rows {
-		rule, ignore := ignoreRow(row.RuleKey, len(row.Row))
-		if ignore {
+		rule, _ := global.RuleIns(row.RuleKey)
+		if rule.TableColumnSize != len(row.Row) {
+			logutil.Warnf("%s schema mismatching", row.RuleKey)
 			continue
 		}
 
 		if rule.LuaNecessary() {
-			s.doLuaConsume(row, rule, pipe)
+			kvm := keyValueMap(row, rule, true)
+			ls, err := luaengine.DoRedisOps(kvm, row.Action, rule)
+			if err != nil {
+				logutil.Errorf("lua 脚本执行失败 : %s ", errors.ErrorStack(err))
+				break
+			}
+			for _, resp := range ls {
+				s.preparePipe(resp, pipe)
+				global.RedisRespondPool.Put(resp)
+			}
 		} else {
-			s.doRuleConsume(row, rule, pipe)
+			resp := s.ruleRespond(row, rule)
+			resp.Action = row.Action
+			resp.Structure = rule.RedisStructure
+			s.preparePipe(resp, pipe)
+			global.RedisRespondPool.Put(resp)
 		}
 	}
 
-	var succeeds int
+	var counter int64
 	res, err := pipe.Exec()
 	if err != nil {
 		logutil.Error(err.Error())
 	}
+
 	for _, re := range res {
 		if re.Err() == nil {
-			succeeds++
+			counter++
 		}
 	}
 
-	return succeeds
+	return counter
 }
 
-func (s *RedisEndpoint) doLuaConsume(row *global.RowRequest, rule *global.Rule, cmd redis.Cmdable) {
-	kvm := keyValueMap(row, rule)
+func (s *RedisEndpoint) ruleRespond(row *global.RowRequest, rule *global.Rule) *global.RedisRespond {
+	resp := global.RedisRespondPool.Get().(*global.RedisRespond)
+	resp.Action = row.Action
+	resp.Structure = rule.RedisStructure
 
-	responds, err := luaengine.DoRedisOps(kvm, rule)
-	if err != nil {
-		logutil.Error(err.Error())
+	kvm := keyValueMap(row, rule, false)
+	resp.Key = s.encodeKey(row, rule)
+	if resp.Structure == global.RedisStructureHash {
+		resp.Field = s.encodeHashField(row, rule)
+	}
+	if resp.Action != canal.DeleteAction {
+		resp.Val = encodeStringValue(rule, kvm)
 	}
 
-	for _, resp := range responds {
-		switch rule.RedisStructure {
-		case global.RedisStructureString:
-			if row.Action == global.DeleteAction {
-				cmd.Del(resp.Key)
-			} else {
-				cmd.Set(resp.Key, resp.Val, 0)
-			}
-		case global.RedisStructureHash:
-			if row.Action == global.DeleteAction {
-				cmd.HDel(resp.Key, resp.Field)
-			} else {
-				fmt.Println(resp.Key, resp.Field, resp.Val)
-				cmd.HSet(resp.Key, resp.Field, resp.Val)
-			}
-		case global.RedisStructureList:
-			if row.Action == global.DeleteAction {
-				cmd.LRem(resp.Key, 0, resp.Val)
-			} else {
-				cmd.RPush(resp.Key, resp.Val)
-			}
-		case global.RedisStructureSet:
-			if row.Action == global.DeleteAction {
-				cmd.SRem(resp.Key, resp.Val)
-			} else {
-				cmd.SAdd(resp.Key, resp.Val)
-			}
-		}
-		global.RedisRespondPool.Put(resp)
-	}
+	return resp
 }
 
-func (s *RedisEndpoint) doRuleConsume(row *global.RowRequest, rule *global.Rule, cmd redis.Cmdable) {
-	kvm := keyValueMap(row, rule)
-
-	val := encodeStringValue(rule, kvm)
-	switch rule.RedisStructure {
+func (s *RedisEndpoint) preparePipe(resp *global.RedisRespond, pipe redis.Cmdable) {
+	switch resp.Structure {
 	case global.RedisStructureString:
-		key := s.encodeKey(row, rule)
-		if row.Action == global.DeleteAction {
-			cmd.Del(key)
+		if resp.Action == canal.DeleteAction {
+			pipe.Del(resp.Key)
 		} else {
-			cmd.Set(key, val, 0)
+			pipe.Set(resp.Key, resp.Val, 0)
 		}
 	case global.RedisStructureHash:
-		field := s.encodeHashField(row, rule)
-		if row.Action == global.DeleteAction {
-			cmd.HDel(rule.RedisKeyValue, field)
+		if resp.Action == canal.DeleteAction {
+			pipe.HDel(resp.Key, resp.Field)
 		} else {
-			cmd.HSet(rule.RedisKeyValue, field, val)
+			pipe.HSet(resp.Key, resp.Field, resp.Val)
 		}
 	case global.RedisStructureList:
-		if row.Action == global.DeleteAction {
-			cmd.LRem(rule.RedisKeyValue, 0, val)
+		if resp.Action == canal.DeleteAction {
+			pipe.LRem(resp.Key, 0, resp.Val)
 		} else {
-			cmd.RPush(rule.RedisKeyValue, val)
+			pipe.RPush(resp.Key, resp.Val)
 		}
 	case global.RedisStructureSet:
-		if row.Action == global.DeleteAction {
-			cmd.SRem(rule.RedisKeyValue, val)
+		if resp.Action == canal.DeleteAction {
+			pipe.SRem(resp.Key, resp.Val)
 		} else {
-			cmd.SAdd(rule.RedisKeyValue, val)
+			pipe.SAdd(resp.Key, resp.Val)
 		}
 	}
+}
+
+func (s *RedisEndpoint) doCmd(resp *global.RedisRespond) error {
+	var cmd redis.Cmdable
+	if s.isCluster {
+		cmd = s.cluster
+	} else {
+		cmd = s.client
+	}
+
+	switch resp.Structure {
+	case global.RedisStructureString:
+		if resp.Action == canal.DeleteAction {
+			r := cmd.Del(resp.Key)
+			if r.Err() != nil {
+				return r.Err()
+			}
+		} else {
+			r := cmd.Set(resp.Key, resp.Val, 0)
+			if r.Err() != nil {
+				return r.Err()
+			}
+		}
+	case global.RedisStructureHash:
+		if resp.Action == canal.DeleteAction {
+			r := cmd.HDel(resp.Key, resp.Field)
+			if r.Err() != nil {
+				return r.Err()
+			}
+		} else {
+			r := cmd.HSet(resp.Key, resp.Field, resp.Val)
+			if r.Err() != nil {
+				return r.Err()
+			}
+		}
+	case global.RedisStructureList:
+		if resp.Action == canal.DeleteAction {
+			r := cmd.LRem(resp.Key, 0, resp.Val)
+			if r.Err() != nil {
+				return r.Err()
+			}
+		} else {
+			r := cmd.RPush(resp.Key, resp.Val)
+			if r.Err() != nil {
+				return r.Err()
+			}
+		}
+	case global.RedisStructureSet:
+		if resp.Action == canal.DeleteAction {
+			r := cmd.SRem(resp.Key, resp.Val)
+			if r.Err() != nil {
+				return r.Err()
+			}
+		} else {
+			r := cmd.SAdd(resp.Key, resp.Val)
+			if r.Err() != nil {
+				return r.Err()
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *RedisEndpoint) doRetryTask() error {
+	if s.cached.Size() == 0 {
+		return nil
+	}
+
+	if err := s.Ping(); err != nil {
+		return err
+	}
+
+	logutil.Infof("当前重试队列有%d 条数据", s.cached.Size())
+
+	var data []byte
+	ids := s.cached.IdList()
+	for _, id := range ids {
+		var err error
+		data, err = s.cached.Get(id)
+		if err != nil {
+			logutil.Warn(err.Error())
+			s.cached.Delete(id)
+			continue
+		}
+
+		var row global.RowRequest
+		err = msgpack.Unmarshal(data, &row)
+		if err != nil {
+			logutil.Warn(err.Error())
+			s.cached.Delete(id)
+			continue
+		}
+
+		rule, _ := global.RuleIns(row.RuleKey)
+		if rule.LuaNecessary() {
+			kvm := keyValueMap(&row, rule, true)
+			ls, err := luaengine.DoRedisOps(kvm, row.Action, rule)
+			if err != nil {
+				return errors.New(fmt.Sprintf("lua 脚本执行失败 : %s ", errors.ErrorStack(err)))
+			}
+			for _, resp := range ls {
+				err = s.doCmd(resp)
+
+				logutil.Infof("retry: action: %s, structure: %s ,key: %s ,field: %s, value: %v",
+					resp.Action, global.StructureName(resp.Structure), resp.Key, resp.Field, resp.Val)
+
+				global.RedisRespondPool.Put(resp)
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			resp := s.ruleRespond(&row, rule)
+			err = s.doCmd(resp)
+
+			logutil.Infof("retry: action: %s, structure: %s ,key: %s ,field: %s, value: %v",
+				resp.Action, global.StructureName(resp.Structure), resp.Key, resp.Field, resp.Val)
+
+			global.RedisRespondPool.Put(resp)
+			if err != nil {
+				return err
+			}
+		}
+
+		logutil.Infof("cached id :%d , 数据重试成功", id)
+		s.cached.Delete(id)
+	}
+
+	return nil
 }
 
 func (s *RedisEndpoint) encodeKey(re *global.RowRequest, rule *global.Rule) string {
 	var key string
-	if rule.RedisKeyFormatter == "" {
-		if rule.RedisKeyIndexListLen == 1 { // 组合ID
-			key = stringutil.ToString(re.Row[rule.RedisKeyIndexList[0]])
-		} else {
-			for _, v := range rule.RedisKeyIndexList {
-				key += stringutil.ToString(re.Row[v])
-			}
-		}
-		if rule.RedisKeyPrefix != "" {
-			key = rule.RedisKeyPrefix + key
-		}
-	} else {
-		for column, index := range rule.RedisKeyIndexMap {
+	if rule.RedisKeyFormatter != "" {
+		for column, index := range rule.RedisKeyColumnIndexMap {
 			val := stringutil.ToString(re.Row[index])
 			temp := rule.RedisKeyFormatter
 			temp = strings.ReplaceAll(temp, global.LeftBrace+column+global.RightBrace, val)
 			key = temp
 		}
+		return key
+	}
+
+	if rule.RedisKeyColumnIndex < 0 {
+		for _, v := range rule.RedisKeyColumnIndexs {
+			key += stringutil.ToString(re.Row[v])
+		}
+	} else {
+		key = stringutil.ToString(re.Row[rule.RedisKeyColumnIndex])
+	}
+	if rule.RedisKeyPrefix != "" {
+		key = rule.RedisKeyPrefix + key
 	}
 
 	return key
 }
 
 func (s *RedisEndpoint) encodeHashField(re *global.RowRequest, rule *global.Rule) string {
-	var hashField string
-	if rule.RedisTableHashFieldIndexListLen == 1 {
-		hashField = stringutil.ToString(re.Row[rule.RedisTableHashFieldIndexList[0]])
-	} else {
-		for _, index := range rule.RedisTableHashFieldIndexList {
-			hashField += stringutil.ToString(re.Row[index])
+	var field string
+
+	if rule.RedisHashFieldColumnIndex < 0 {
+		for _, v := range rule.RedisHashFieldColumnIndexs {
+			field += stringutil.ToString(re.Row[v])
 		}
+	} else {
+		field = stringutil.ToString(re.Row[rule.RedisHashFieldColumnIndex])
 	}
 
 	if rule.RedisHashFieldPrefix != "" {
-		hashField = rule.RedisHashFieldPrefix + hashField
+		field = rule.RedisHashFieldPrefix + field
 	}
 
-	return hashField
-}
-
-func (s *RedisEndpoint) StartRetryTask() {
-	ticker := time.NewTicker(_retryInterval * time.Second)
-	go func() {
-		for {
-			<-ticker.C
-			if _rowCache.Size() == 0 {
-				logutil.Info("当前无数据等待重试")
-				continue
-			}
-			if err := s.Ping(); err != nil {
-				continue
-			}
-			logutil.Infof("当前有%d 条数据等待重试", _rowCache.Size())
-			ids, err := _rowCache.IdList()
-			if err != nil {
-				logutil.Errorf(err.Error())
-				continue
-			}
-
-			var data []byte
-			for _, id := range ids {
-				var err error
-				data, err = _rowCache.Get(id)
-				if err != nil {
-					logutil.Warn(err.Error())
-					_rowCache.Delete(id)
-					continue
-				}
-
-				var cached global.RowRequest
-				err = msgpack.Unmarshal(data, &cached)
-				if err != nil {
-					logutil.Warn(err.Error())
-					_rowCache.Delete(data)
-					continue
-				}
-
-				rule, _ := global.RuleIns(cached.RuleKey)
-				if rule.LuaNecessary() {
-					err = s.doLuaRetry(&cached, rule)
-				} else {
-					err = s.doRuleRetry(&cached, rule)
-				}
-
-				if err != nil {
-					break
-				}
-
-				logutil.Infof("数据重试成功,还有%d 条数据等待重试", _rowCache.Size())
-				_rowCache.Delete(id)
-			}
-		}
-	}()
-}
-
-func (s *RedisEndpoint) doLuaRetry(row *global.RowRequest, rule *global.Rule) error {
-	kvm := keyValueMap(row, rule)
-
-	responds, err := luaengine.DoRedisOps(kvm, rule)
-	if err != nil {
-		logutil.Warn(err.Error())
-		return nil
-	}
-
-	var cmder redis.Cmdable
-	if s.isCluster {
-		cmder = s.cluster
-	} else {
-		cmder = s.client
-	}
-
-	for _, resp := range responds {
-		switch rule.RedisStructure {
-		case global.RedisStructureString:
-			if row.Action == global.DeleteAction {
-				s := cmder.Del(resp.Key)
-				global.RedisRespondPool.Put(resp)
-				if s.Err() != nil {
-					return s.Err()
-				}
-			} else {
-				s := cmder.Set(resp.Key, resp.Val, 0)
-				global.RedisRespondPool.Put(resp)
-				if s.Err() != nil {
-					return s.Err()
-				}
-			}
-		case global.RedisStructureHash:
-			field := s.encodeHashField(row, rule)
-			if row.Action == global.DeleteAction {
-				s := cmder.HDel(resp.Key, field)
-				global.RedisRespondPool.Put(resp)
-				if s.Err() != nil {
-					return s.Err()
-				}
-			} else {
-				s := cmder.HSet(resp.Key, field, resp.Val)
-				global.RedisRespondPool.Put(resp)
-				if s.Err() != nil {
-					return s.Err()
-				}
-			}
-		case global.RedisStructureList:
-			if row.Action == global.DeleteAction {
-				s := cmder.LRem(rule.RedisKeyValue, 0, resp.Val)
-				global.RedisRespondPool.Put(resp)
-				if s.Err() != nil {
-					return s.Err()
-				}
-			} else {
-				s := cmder.RPush(rule.RedisKeyValue, resp.Val)
-				global.RedisRespondPool.Put(resp)
-				if s.Err() != nil {
-					return s.Err()
-				}
-			}
-		case global.RedisStructureSet:
-			if row.Action == global.DeleteAction {
-				s := cmder.SRem(rule.RedisKeyValue, resp.Val)
-				global.RedisRespondPool.Put(resp)
-				if s.Err() != nil {
-					return s.Err()
-				}
-			} else {
-				s := cmder.SAdd(rule.RedisKeyValue, resp.Val)
-				global.RedisRespondPool.Put(resp)
-				if s.Err() != nil {
-					return s.Err()
-				}
-			}
-		}
-		logutil.Infof("%s by lua : %v", row.RuleKey, resp)
-	}
-
-	return nil
-}
-
-func (s *RedisEndpoint) doRuleRetry(row *global.RowRequest, rule *global.Rule) error {
-	kvm := keyValueMap(row, rule)
-
-	var cmder redis.Cmdable
-	if s.isCluster {
-		cmder = s.cluster
-	} else {
-		cmder = s.client
-	}
-
-	key := s.encodeKey(row, rule)
-	val := encodeStringValue(rule, kvm)
-	switch rule.RedisStructure {
-	case global.RedisStructureString:
-		if row.Action == global.DeleteAction {
-			s := cmder.Del(key)
-			if s.Err() != nil {
-				return s.Err()
-			}
-		} else {
-			s := cmder.Set(key, val, 0)
-			if s.Err() != nil {
-				return s.Err()
-			}
-		}
-	case global.RedisStructureHash:
-		field := s.encodeHashField(row, rule)
-		if row.Action == global.DeleteAction {
-			s := cmder.HDel(key, field)
-			if s.Err() != nil {
-				return s.Err()
-			}
-		} else {
-			s := cmder.HSet(key, field, val)
-			if s.Err() != nil {
-				return s.Err()
-			}
-		}
-	case global.RedisStructureList:
-		if row.Action == global.DeleteAction {
-			s := cmder.LRem(rule.RedisKeyValue, 0, val)
-			if s.Err() != nil {
-				return s.Err()
-			}
-		} else {
-			s := cmder.RPush(rule.RedisKeyValue, val)
-			if s.Err() != nil {
-				return s.Err()
-			}
-		}
-	case global.RedisStructureSet:
-		if row.Action == global.DeleteAction {
-			s := cmder.SRem(rule.RedisKeyValue, val)
-			if s.Err() != nil {
-				return s.Err()
-			}
-		} else {
-			s := cmder.SAdd(rule.RedisKeyValue, val)
-			if s.Err() != nil {
-				return s.Err()
-			}
-		}
-	}
-
-	return nil
+	return field
 }
 
 func (s *RedisEndpoint) Close() {

@@ -7,10 +7,6 @@ import (
 	"go-mysql-transfer/util/stringutil"
 )
 
-const (
-	_globalNEST = "___NEST___"
-)
-
 func redisModule(L *lua.LState) int {
 	t := L.NewTable()
 	L.SetFuncs(t, _redisModuleApi)
@@ -19,62 +15,112 @@ func redisModule(L *lua.LState) int {
 }
 
 var _redisModuleApi = map[string]lua.LGFunction{
-	"SET":   redisSet,
-	"HSET":  redisHSet,
+	"rawRow":    rawRow,
+	"rawAction": rawAction,
+
+	"SET": redisSet,
+	"DEL": redisDel,
+
+	"HSET": redisHSet,
+	"HDEL": redisHDel,
+
 	"RPUSH": redisRPush,
-	"SADD":  redisSAdd,
+	"LREM":  redisLRem,
+
+	"SADD": redisSAdd,
+	"SREM": redisSRem,
 }
 
 func redisSet(L *lua.LState) int {
-	key := L.CheckAny(1)
+	key := L.CheckString(1)
 	val := L.CheckAny(2)
-	vls := L.GetGlobal(_globalVLS)
-	L.SetTable(vls, key, val)
-	L.SetGlobal(_globalNEST, lua.LBool(false))
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("insert_1_"+key), val)
+	return 0
+}
+
+func redisDel(L *lua.LState) int {
+	key := L.CheckString(1)
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("delete_1_"+key), lua.LBool(true))
 	return 0
 }
 
 func redisHSet(L *lua.LState) int {
-	key := L.CheckAny(1)
+	key := L.CheckString(1)
 	field := L.CheckAny(2)
 	val := L.CheckAny(3)
+
 	hash := L.NewTable()
-	L.SetTable(hash, lua.LString("key"), key)
+	L.SetTable(hash, lua.LString("key"), lua.LString(key))
 	L.SetTable(hash, lua.LString("field"), field)
 	L.SetTable(hash, lua.LString("val"), val)
 
-	vls := L.GetGlobal(_globalVLS)
-	L.SetTable(vls, lua.LString(stringutil.UUID()), hash)
-	L.SetGlobal(_globalNEST, lua.LBool(true))
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("insert_2_"+stringutil.UUID()), hash)
+	return 0
+}
+
+func redisHDel(L *lua.LState) int {
+	key := L.CheckAny(1)
+	field := L.CheckAny(2)
+
+	hash := L.NewTable()
+	L.SetTable(hash, lua.LString("key"), key)
+	L.SetTable(hash, lua.LString("field"), field)
+	L.SetTable(hash, lua.LString("val"), lua.LNumber(1))
+
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("delete_2_"+stringutil.UUID()), hash)
 	return 0
 }
 
 func redisRPush(L *lua.LState) int {
-	key := L.CheckAny(1)
+	key := L.CheckString(1)
 	val := L.CheckAny(2)
-	vls := L.GetGlobal(_globalVLS)
-	L.SetTable(vls, key, val)
-	L.SetGlobal(_globalNEST, lua.LBool(false))
+
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("insert_3_"+key), val)
+	return 0
+}
+
+func redisLRem(L *lua.LState) int {
+	key := L.CheckString(1)
+	val := L.CheckAny(2)
+
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("delete_3_"+key), val)
 	return 0
 }
 
 func redisSAdd(L *lua.LState) int {
-	key := L.CheckAny(1)
+	key := L.CheckString(1)
 	val := L.CheckAny(2)
-	vls := L.GetGlobal(_globalVLS)
-	L.SetTable(vls, key, val)
-	L.SetGlobal(_globalNEST, lua.LBool(false))
+
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("insert_4_"+key), val)
 	return 0
 }
 
-func DoRedisOps(input map[string]interface{}, rule *global.Rule) ([]*global.RedisRespond, error) {
+func redisSRem(L *lua.LState) int {
+	key := L.CheckString(1)
+	val := L.CheckAny(2)
+
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("delete_4_"+key), val)
+	return 0
+}
+
+func DoRedisOps(input map[string]interface{}, action string, rule *global.Rule) ([]*global.RedisRespond, error) {
 	L := _pool.Get()
 	defer _pool.Put(L)
 
 	row := L.NewTable()
 	paddingTable(L, row, input)
-	vls := L.NewTable()
-	L.SetGlobal(_globalVLS, vls)
+	ret := L.NewTable()
+	L.SetGlobal(_globalRET, ret)
+	L.SetGlobal(_globalROW, row)
+	L.SetGlobal(_globalACT, lua.LString(action))
 
 	funcFromProto := L.NewFunctionFromProto(rule.LuaProto)
 	L.Push(funcFromProto)
@@ -83,32 +129,25 @@ func DoRedisOps(input map[string]interface{}, rule *global.Rule) ([]*global.Redi
 		return nil, err
 	}
 
-	fn := L.GetGlobal(_globalTransferFunc)
-	err = L.CallByParam(lua.P{
-		Fn:      fn,
-		NRet:    0,
-		Protect: true,
-	}, row)
-
-	if err != nil {
-		return nil, err
-	}
-
-	nest := lua.LVAsBool(L.GetGlobal(_globalNEST))
-	ls := make([]*global.RedisRespond, 0, vls.Len())
-	vls.ForEach(func(k lua.LValue, v lua.LValue) {
+	ls := make([]*global.RedisRespond, 0, ret.Len())
+	ret.ForEach(func(k lua.LValue, v lua.LValue) {
 		resp := global.RedisRespondPool.Get().(*global.RedisRespond)
-		if nest {
+		kk := lvToString(k)
+		action := kk[0:6]
+		structure := kk[7:8]
+
+		resp.Action = action
+		resp.Structure = structure
+		if structure == global.RedisStructureHash {
 			key := L.GetTable(v, lua.LString("key"))
 			field := L.GetTable(v, lua.LString("field"))
 			val := L.GetTable(v, lua.LString("val"))
-			resp.Key = decodeString(key)
-			resp.Field = decodeString(field)
-			resp.Val = decodeValue(val)
+			resp.Key = key.String()
+			resp.Field = lvToString(field)
+			resp.Val = lvToInterface(val, true)
 		} else {
-			resp.Key = decodeString(k)
-			resp.Field = ""
-			resp.Val = decodeValue(v)
+			resp.Key = kk[9:len(kk)]
+			resp.Val = lvToInterface(v, true)
 		}
 
 		ls = append(ls, resp)

@@ -11,10 +11,10 @@ type Election interface {
 }
 
 func NewElection(_informCh chan bool, cfg *global.Config) Election {
-	if cfg.IsZk(){
+	if cfg.IsZk() {
 		return newZkElection(_informCh, cfg)
 	}
-	if cfg.IsEtcd(){
+	if cfg.IsEtcd() {
 		return newEtcdElection(_informCh, cfg)
 	}
 

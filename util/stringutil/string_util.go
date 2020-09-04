@@ -28,6 +28,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/pquerna/ffjson/ffjson"
 	"github.com/satori/go.uuid"
 
 	"go-mysql-transfer/util/logutil"
@@ -64,6 +65,24 @@ func ToInt64Safe(str string) int64 {
 }
 
 // 转换为Uint64
+func ToUint32(str string) (uint32, error) {
+	v, e := strconv.ParseUint(str, 10, 32)
+	if nil != e {
+		return 0, e
+	}
+	return uint32(v), nil
+}
+
+// 转换为Uint64
+func ToUint32Safe(str string) uint32 {
+	v, e := strconv.ParseUint(str, 10, 32)
+	if nil != e {
+		return 0
+	}
+	return uint32(v)
+}
+
+// 转换为Uint64
 func ToUint64Safe(str string) uint64 {
 	v, e := strconv.ParseUint(str, 10, 64)
 	if nil != e {
@@ -97,7 +116,7 @@ func CommasToMap(base string, sep string) map[string]interface{} {
 }
 
 func ToJsonString(v interface{}) string {
-	bytes, err := json.Marshal(v)
+	bytes, err := ffjson.Marshal(v)
 	if nil != err {
 		logutil.GlobalSugar().Errorf("json marshal :%s", err.Error())
 		return ""
@@ -207,7 +226,7 @@ func ToString(value interface{}) string {
 	case []byte:
 		key = string(value.([]byte))
 	default:
-		newValue, _ := json.Marshal(value)
+		newValue, _ := ffjson.Marshal(value)
 		key = string(newValue)
 	}
 

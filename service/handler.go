@@ -25,7 +25,7 @@ func (h *handler) OnRotate(e *replication.RotateEvent) error {
 		Force: true,
 	}
 
-	return h.transfer.CtxErr()
+	return h.transfer.ctx.Err()
 }
 
 func (h *handler) OnTableChanged(schema, table string) error {
@@ -43,7 +43,7 @@ func (h *handler) OnDDL(nextPos mysql.Position, _ *replication.QueryEvent) error
 		Force: true,
 	}
 
-	return h.transfer.CtxErr()
+	return h.transfer.ctx.Err()
 }
 
 func (h *handler) OnXID(nextPos mysql.Position) error {
@@ -53,7 +53,7 @@ func (h *handler) OnXID(nextPos mysql.Position) error {
 		Force: false,
 	}
 
-	return h.transfer.CtxErr()
+	return h.transfer.ctx.Err()
 }
 
 func (h *handler) OnRow(e *canal.RowsEvent) error {
@@ -63,16 +63,28 @@ func (h *handler) OnRow(e *canal.RowsEvent) error {
 	}
 
 	var requests []*global.RowRequest
-	for _, row := range e.Rows {
-		requests = append(requests, &global.RowRequest{
-			RuleKey: ruleKey,
-			Action:  h.actionType(e.Action),
-			Row:     row,
-		})
+	if e.Action == canal.UpdateAction {
+		for i := 0; i < len(e.Rows); i++ {
+			if (i+1)%2 == 0 {
+				rr := global.RowRequestPool.Get().(*global.RowRequest)
+				rr.RuleKey = ruleKey
+				rr.Action = e.Action
+				rr.Row = e.Rows[i]
+				requests = append(requests, rr)
+			}
+		}
+	} else {
+		for _, row := range e.Rows {
+			rr := global.RowRequestPool.Get().(*global.RowRequest)
+			rr.RuleKey = ruleKey
+			rr.Action = e.Action
+			rr.Row = row
+			requests = append(requests, rr)
+		}
 	}
 	h.requestQueue <- requests
 
-	return h.transfer.CtxErr()
+	return h.transfer.ctx.Err()
 }
 
 func (h *handler) OnGTID(gtid mysql.GTIDSet) error {
@@ -124,7 +136,7 @@ func (h *handler) startRequestQueueListener() {
 				}
 			case <-ticker.C:
 				needFlush = true
-			case <-h.transfer.CtxDone():
+			case <-h.transfer.ctx.Done():
 				return
 			}
 
@@ -144,16 +156,4 @@ func (h *handler) startRequestQueueListener() {
 			}
 		}
 	}()
-}
-
-func (h *handler) actionType(canalAction string) int {
-	switch canalAction {
-	case canal.InsertAction:
-		return global.InsertAction
-	case canal.DeleteAction:
-		return global.DeleteAction
-	case canal.UpdateAction:
-		return global.UpdateAction
-	}
-	return 0
 }

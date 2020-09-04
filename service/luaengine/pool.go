@@ -35,10 +35,10 @@ func (p *luaStatePool) New() *lua.LState {
 	luaJson.Preload(L)
 
 	L.PreloadModule("redisOps", redisModule)
-	L.PreloadModule("rocketmqOps", rocketmqModule)
+	L.PreloadModule("mqOps", mqModule)
+	L.PreloadModule("mongodbOps", mongoModule)
+	L.PreloadModule("esOps", esModule)
 
-	// setting the L up here.
-	// load scripts, set global variables, share channels, etc...
 	return L
 }
 

@@ -7,7 +7,7 @@ import (
 
 type RowRequest struct {
 	RuleKey string
-	Action  int
+	Action  string
 	Row     []interface{}
 }
 
@@ -18,21 +18,42 @@ type PosRequest struct {
 }
 
 type RedisRespond struct {
-	Key   string
-	Field string
-	Val   interface{}
+	Action    string
+	Structure string
+	Key       string
+	Field     string
+	Val       interface{}
 }
 
-type RocketmqRespond struct {
-	Topic string
-	Msg   []byte
+type MQRespond struct {
+	Topic     string      `json:"-"`
+	Action    string      `json:"action"`
+	Date      interface{} `json:"date"`
+	ByteArray []byte      `json:"-"`
+}
+
+type ESRespond struct {
+	Index  string
+	Id     string
+	Action string
+	Date   string
+}
+
+type MongoRespond struct {
+	RuleKey    string
+	Collection string
+	Action     string
+	Id         interface{}
+	Table      map[string]interface{}
 }
 
 type Padding struct {
-	WrapName    string
-	Column      *schema.TableColumn
-	ColumnName  string
-	ColumnIndex int
+	WrapName string
+
+	ColumnName     string
+	ColumnIndex    int
+	ColumnType     int
+	ColumnMetadata *schema.TableColumn
 }
 
 var RedisRespondPool = sync.Pool{
@@ -41,8 +62,14 @@ var RedisRespondPool = sync.Pool{
 	},
 }
 
-var RocketmqRespondPool = sync.Pool{
+var MQRespondPool = sync.Pool{
 	New: func() interface{} {
-		return new(RocketmqRespond)
+		return new(MQRespond)
+	},
+}
+
+var RowRequestPool = sync.Pool{
+	New: func() interface{} {
+		return new(RowRequest)
 	},
 }

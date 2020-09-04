@@ -14,9 +14,12 @@ import (
 )
 
 const (
-	_targetRedis    = "REDIS"
-	_targetMongoDB  = "MONGODB"
-	_targetRocketmq = "ROCKETMQ"
+	_targetRedis         = "REDIS"
+	_targetMongodb       = "MONGODB"
+	_targetRocketmq      = "ROCKETMQ"
+	_targetRabbitmq      = "RABBITMQ"
+	_targetKafka         = "KAFKA"
+	_targetElasticsearch = "ELASTICSEARCH"
 
 	RedisGroupTypeSentinel = "sentinel"
 	RedisGroupTypeCluster  = "cluster"
@@ -25,13 +28,12 @@ const (
 
 	_zeRootDir = "/transfer" // ZooKeeper and Etcd root
 
-	InsertAction = 1
-	DeleteAction = 2
-	UpdateAction = 3
-
 	_flushBulkInterval  = 200
 	_flushBulkSize      = 128
 	_redisFlushBulkSize = 1024
+
+	DefaultDateFormatter     = "2006-01-02"
+	DefaultDatetimeFormatter = "2006-01-02 15:04:05"
 )
 
 var (
@@ -48,8 +50,8 @@ type Config struct {
 	Charset  string `yaml:"charset"`
 
 	SlaveID uint32 `yaml:"slave_id"`
-	Flavor   string `yaml:"flavor"`
-	DataDir  string `yaml:"data_dir"`
+	Flavor  string `yaml:"flavor"`
+	DataDir string `yaml:"data_dir"`
 
 	DumpExec       string `yaml:"mysqldump"`
 	SkipMasterData bool   `yaml:"skip_master_data"`
@@ -82,6 +84,25 @@ type Config struct {
 	RocketmqInstanceName string `yaml:"rocketmq_instance_name"` //rocketmq instance name,默认为空
 	RocketmqAccessKey    string `yaml:"rocketmq_access_key"`    //访问控制 accessKey,默认为空
 	RocketmqSecretKey    string `yaml:"rocketmq_secret_key"`    //访问控制 secretKey,默认为空
+
+	// ------------------- MONGODB -----------------
+	MongodbAddr     string `yaml:"mongodb_addrs"`    //mongodb地址，多个用逗号分隔
+	MongodbUsername string `yaml:"mongodb_username"` //mongodb用户名，默认为空
+	MongodbPassword string `yaml:"mongodb_password"` //mongodb密码，默认为空
+
+	// ------------------- RABBITMQ -----------------
+	RabbitmqAddr string `yaml:"rabbitmq_addr"` //连接字符串,如: amqp://guest:guest@localhost:5672/
+
+	// ------------------- KAFKA -----------------
+	KafkaAddr         string `yaml:"kafka_addrs"`         //kafka连接地址，多个用逗号分隔
+	KafkaSASLUser     string `yaml:"kafka_sasl_user"`     //kafka SASL_PLAINTEXT认证模式 用户名
+	KafkaSASLPassword string `yaml:"kafka_sasl_password"` //kafka SASL_PLAINTEXT认证模式 密码
+
+	// ------------------- ES -----------------
+	ElsAddr     string `yaml:"es_addrs"`    //Elasticsearch连接地址，多个用逗号分隔
+	ElsUser     string `yaml:"es_user"`     //Elasticsearch用户名
+	ElsPassword string `yaml:"es_password"` //Elasticsearch密码
+	ElsVersion  int    `yaml:"es_version"`  //Elasticsearch版本，支持6和7、默认为7
 }
 
 type Cluster struct {
@@ -123,7 +144,22 @@ func NewConfigWithFile(name string) (*Config, error) {
 		if err := checkRocketmqConfig(&c); err != nil {
 			return nil, errors.Trace(err)
 		}
-	case _targetMongoDB:
+	case _targetMongodb:
+		if err := checkMongodbConfig(&c); err != nil {
+			return nil, errors.Trace(err)
+		}
+	case _targetRabbitmq:
+		if err := checkRabbitmqConfig(&c); err != nil {
+			return nil, errors.Trace(err)
+		}
+	case _targetKafka:
+		if err := checkKafkaConfig(&c); err != nil {
+			return nil, errors.Trace(err)
+		}
+	case _targetElasticsearch:
+		if err := checkElsConfig(&c); err != nil {
+			return nil, errors.Trace(err)
+		}
 	}
 
 	_config = &c
@@ -264,6 +300,46 @@ func checkRocketmqConfig(c *Config) error {
 	return nil
 }
 
+func checkMongodbConfig(c *Config) error {
+	if len(c.MongodbAddr) == 0 {
+		return errors.Errorf("empty mongodb_addrs not allowed")
+	}
+
+	return nil
+}
+
+func checkRabbitmqConfig(c *Config) error {
+	if len(c.RabbitmqAddr) == 0 {
+		return errors.Errorf("empty rabbitmq_addr not allowed")
+	}
+
+	return nil
+}
+
+func checkKafkaConfig(c *Config) error {
+	if len(c.KafkaAddr) == 0 {
+		return errors.Errorf("empty kafka_addrs not allowed")
+	}
+
+	return nil
+}
+
+func checkElsConfig(c *Config) error {
+	if len(c.ElsAddr) == 0 {
+		return errors.Errorf("empty es_addrs not allowed")
+	}
+
+	if c.ElsVersion == 0 {
+		c.ElsVersion = 7
+	}
+
+	if !(c.ElsVersion == 6 || c.ElsVersion == 7) {
+		return errors.Errorf("elasticsearch version must 6 or 7")
+	}
+
+	return nil
+}
+
 func (c *Config) IsCluster() bool {
 	if !c.IsZk() && !c.IsEtcd() {
 		return false
@@ -310,8 +386,20 @@ func (c *Config) IsRocketmq() bool {
 	return strings.ToUpper(c.Target) == _targetRocketmq
 }
 
-func (c *Config) IsMongo() bool {
-	return strings.ToUpper(c.Target) == _targetMongoDB
+func (c *Config) IsMongodb() bool {
+	return strings.ToUpper(c.Target) == _targetMongodb
+}
+
+func (c *Config) IsRabbitmq() bool {
+	return strings.ToUpper(c.Target) == _targetRabbitmq
+}
+
+func (c *Config) IsKafka() bool {
+	return strings.ToUpper(c.Target) == _targetKafka
+}
+
+func (c *Config) IsEls() bool {
+	return strings.ToUpper(c.Target) == _targetElasticsearch
 }
 
 func (c *Config) IsExporterEnable() bool {
@@ -329,8 +417,22 @@ func (c *Config) Destination() string {
 		des += "rocketmq("
 		des += c.RocketmqNameServers
 		des += ")"
-	case _targetMongoDB:
-
+	case _targetMongodb:
+		des += "mongodb("
+		des += c.MongodbAddr
+		des += ")"
+	case _targetRabbitmq:
+		des += "rabbitmq("
+		des += c.RabbitmqAddr
+		des += ")"
+	case _targetKafka:
+		des += "kafka("
+		des += c.KafkaAddr
+		des += ")"
+	case _targetElasticsearch:
+		des += "elasticsearch("
+		des += c.ElsAddr
+		des += ")"
 	}
 	return des
 }

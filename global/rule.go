@@ -20,10 +20,10 @@ import (
 )
 
 const (
-	RedisStructureString = "string"
-	RedisStructureHash   = "hash"
-	RedisStructureList   = "list"
-	RedisStructureSet    = "set"
+	RedisStructureString = "1"
+	RedisStructureHash   = "2"
+	RedisStructureList   = "3"
+	RedisStructureSet    = "4"
 
 	ValEncoderJson     = "json"
 	ValEncoderKVCommas = "kv-commas"
@@ -37,17 +37,25 @@ var (
 	_lockOfRuleInsMap sync.RWMutex
 )
 
+type EsMapping struct {
+	Column   string `yaml:"column"`   // 数据库列名称
+	Field    string `yaml:"field"`    // 映射后的ES字段名称
+	Type     string `yaml:"type"`     // ES字段类型
+	Analyzer string `yaml:"analyzer"` // ES分词器
+	Format   string `yaml:"format"`   // 日期格式
+}
+
 type Rule struct {
-	Schema                  string `yaml:"schema"`
-	Table                   string `yaml:"table"`
-	OrderByColumn           string `yaml:"order_by_column"`
-	ColumnLowerCase         bool   `yaml:"column_lower_case"`          // 列名称转为小写
-	ColumnUpperCase         bool   `yaml:"column_upper_case"`          // 列名称转为大写
-	ColumnUnderscoreToCamel bool   `yaml:"column_underscore_to_camel"` // 列名称下划线转驼峰
-	IncludeColumnConf       string `yaml:"include_column"`             // 包含的列
-	ExcludeColumnConf       string `yaml:"exclude_column"`             // 排除掉的列
-	ColumnMappingConf       string `yaml:"column_mapping"`             // 列名称映射
-	DefColumnValueConf      string `yaml:"default_column_value"`       // 默认的字段和值
+	Schema                   string `yaml:"schema"`
+	Table                    string `yaml:"table"`
+	OrderByColumn            string `yaml:"order_by_column"`
+	ColumnLowerCase          bool   `yaml:"column_lower_case"`          // 列名称转为小写
+	ColumnUpperCase          bool   `yaml:"column_upper_case"`          // 列名称转为大写
+	ColumnUnderscoreToCamel  bool   `yaml:"column_underscore_to_camel"` // 列名称下划线转驼峰
+	IncludeColumnConfig      string `yaml:"include_columns"`            // 包含的列
+	ExcludeColumnConfig      string `yaml:"exclude_columns"`            // 排除掉的列
+	ColumnMappingConfigs     string `yaml:"column_mappings"`            // 列名称映射
+	DefaultColumnValueConfig string `yaml:"default_column_values"`      // 默认的字段和值
 	// #值编码，支持json、kv-commas、v-commas；默认为json；json形如：{"id":123,"name":"wangjie"} 、kv-commas形如：id=123,name="wangjie"、v-commas形如：123,wangjie
 	ValueEncoder      string `yaml:"value_encoder"`
 	ValueFormatter    string `yaml:"value_formatter"`    //格式化定义key,{id}表示字段id的值、{name}表示字段name的值
@@ -69,26 +77,37 @@ type Rule struct {
 	// 使用哪个列的值作为hash的field，仅redis_structure为hash时起作用
 	RedisHashFieldColumn string `yaml:"redis_hash_field_column"`
 
-	RedisKeyIndexListLen int
-	RedisKeyIndexList    []int
-	RedisKeyIndexMap     map[string]int
-
-	RedisTableHashFieldIndexListLen int
-	RedisTableHashFieldIndexList    []int
+	RedisKeyColumnIndex        int
+	RedisKeyColumnIndexs       []int
+	RedisKeyColumnIndexMap     map[string]int
+	RedisHashFieldColumnIndex  int
+	RedisHashFieldColumnIndexs []int
 
 	// ------------------- ROCKETMQ -----------------
-	RocketmqTopic string `yaml:"rocketmq_topic"` //rocketmq topic
+	RocketmqTopic string `yaml:"rocketmq_topic"` //rocketmq topic名称，可以为空，为空时使用表名称
+
+	// ------------------- MONGODB -----------------
+	MongodbDatabase   string `yaml:"mongodb_database"`   //mongodb database 不能为空
+	MongodbCollection string `yaml:"mongodb_collection"` //mongodb collection，可以为空，默认使用表(Table)名称
+
+	// ------------------- RABBITMQ -----------------
+	RabbitmqQueue string `yaml:"rabbitmq_queue"` //queue名称,可以为空，默认使用表(Table)名称
+
+	// ------------------- KAFKA -----------------
+	KafkaTopic string `yaml:"kafka_topic"` //TOPIC名称,可以为空，默认使用表(Table)名称
+
+	// ------------------- ES -----------------
+	ElsIndex   string       `yaml:"es_index"`    //Elasticsearch Index,可以为空，默认使用表(Table)名称
+	EsMappings []*EsMapping `yaml:"es_mappings"` //Elasticsearch mappings映射关系,可以为空，为空时根据数据类型自己推导
 
 	// --------------- no config ----------------
-	Enable          bool
-	CompositeKey    bool //是否联合主键
-	TableInfo       *schema.Table
-	HasDefaultVal   bool
-	DefColumnValMap map[string]string
-	IncludeColumnLs []string // 包含的列
-	ExcludeColumnLs []string // 排除掉的列
-	PaddingMap      map[string]*Padding
-	LuaProto        *lua.FunctionProto
+	TableInfo             *schema.Table
+	TableColumnSize       int
+	IsCompositeKey        bool //是否联合主键
+	DefaultColumnValueMap map[string]string
+	PaddingMap            map[string]*Padding
+	LuaProto              *lua.FunctionProto
+	LuaFunction           *lua.LFunction
 }
 
 func RuleDeepClone(res *Rule) (*Rule, error) {
@@ -154,6 +173,21 @@ func RuleInsList() []*Rule {
 	return list
 }
 
+func StructureName(structure string) string {
+	switch structure {
+	case RedisStructureString:
+		return "string"
+	case RedisStructureHash:
+		return "hash"
+	case RedisStructureList:
+		return "list"
+	case RedisStructureSet:
+		return "set"
+	}
+
+	return ""
+}
+
 func (s *Rule) Initialize() error {
 	if err := s.buildPaddingMap(); err != nil {
 		return err
@@ -162,39 +196,70 @@ func (s *Rule) Initialize() error {
 	if s.ValueEncoder == "" {
 		s.ValueEncoder = ValEncoderJson
 	}
+
 	if s.ValueFormatter != "" {
 		s.ValueFormatter = s.rewriteValFormat(s.ValueFormatter)
+		s.ValueEncoder = ""
 	}
 
-	if s.DefColumnValueConf != "" {
-		defFieldValMap := make(map[string]string)
-		for _, t := range strings.Split(s.DefColumnValueConf, ",") {
+	if s.DefaultColumnValueConfig != "" {
+		dm := make(map[string]string)
+		for _, t := range strings.Split(s.DefaultColumnValueConfig, ",") {
 			tt := strings.Split(t, "=")
 			if len(tt) != 2 {
 				return errors.Errorf("default_field_value format error in rule")
 			}
 			field := tt[0]
 			value := tt[1]
-			defFieldValMap[field] = value
+			dm[field] = value
 		}
-		s.HasDefaultVal = true
-		s.DefColumnValMap = defFieldValMap
+		s.DefaultColumnValueMap = dm
 	}
 
 	if s.DateFormatter == "" {
-		s.DateFormatter = "2006-01-02"
+		s.DateFormatter = DefaultDateFormatter
 	} else {
 		s.DateFormatter = dateutil.ConvertGoFormat(s.DateFormatter)
 	}
 
 	if s.DatetimeFormatter == "" {
-		s.DatetimeFormatter = "2006-01-02 15:04:05"
+		s.DatetimeFormatter = DefaultDatetimeFormatter
 	} else {
 		s.DatetimeFormatter = dateutil.ConvertGoFormat(s.DatetimeFormatter)
 	}
 
 	if _config.IsRedis() {
 		if err := s.initRedisConfig(); err != nil {
+			return err
+		}
+	}
+
+	if _config.IsRocketmq() {
+		if err := s.initRocketConfig(); err != nil {
+			return err
+		}
+	}
+
+	if _config.IsMongodb() {
+		if err := s.initMongoConfig(); err != nil {
+			return err
+		}
+	}
+
+	if _config.IsRabbitmq() {
+		if err := s.initRabbitmqConfig(); err != nil {
+			return err
+		}
+	}
+
+	if _config.IsKafka() {
+		if err := s.initKafkaConfig(); err != nil {
+			return err
+		}
+	}
+
+	if _config.IsEls() {
+		if err := s.initElsConfig(); err != nil {
 			return err
 		}
 	}
@@ -214,7 +279,31 @@ func (s *Rule) AfterUpdateTableInfo() error {
 	}
 
 	if _config.IsRocketmq() {
-		if err := s.initRocketmqConfig(); err != nil {
+		if err := s.initRocketConfig(); err != nil {
+			return err
+		}
+	}
+
+	if _config.IsMongodb() {
+		if err := s.initMongoConfig(); err != nil {
+			return err
+		}
+	}
+
+	if _config.IsRabbitmq() {
+		if err := s.initRabbitmqConfig(); err != nil {
+			return err
+		}
+	}
+
+	if _config.IsKafka() {
+		if err := s.initKafkaConfig(); err != nil {
+			return err
+		}
+	}
+
+	if _config.IsEls() {
+		if err := s.initElsConfig(); err != nil {
 			return err
 		}
 	}
@@ -223,66 +312,77 @@ func (s *Rule) AfterUpdateTableInfo() error {
 }
 
 func (s *Rule) buildPaddingMap() error {
-	mappingMap := make(map[string]string)
-	if s.ColumnMappingConf != "" {
-		fieldMappings := strings.Split(s.ColumnMappingConf, ",")
-		for _, t := range fieldMappings {
-			tt := strings.Split(t, "=")
-			if len(tt) != 2 {
-				return errors.Errorf("field-mapping format error in rule")
-			}
-			field := tt[0]
-			mapping := tt[1]
-			_, index := s.TableColumn(field)
-			if index < 0 {
-				return errors.Errorf("field-mapping must be table column")
-			}
-			mappingMap[strings.ToUpper(field)] = mapping
-		}
-	}
-
-	if s.IncludeColumnConf != "" {
-		s.IncludeColumnLs = strings.Split(s.IncludeColumnConf, ",")
-	}
-
-	if s.ExcludeColumnConf != "" {
-		s.ExcludeColumnLs = strings.Split(s.ExcludeColumnConf, ",")
-	}
-
 	paddingMap := make(map[string]*Padding)
-	if s.ValueFormatter == "" {
-		if len(s.IncludeColumnLs) > 0 {
-			for _, f := range s.IncludeColumnLs {
-				columnName := f
-				column, index := s.TableColumn(columnName)
-				if index < 0 {
-					return errors.New("include_field must be table column")
-				}
-				paddingMap[columnName] = s.newPadding(mappingMap, column, columnName, index)
+	mappings := make(map[string]string)
+
+	if s.ColumnMappingConfigs != "" {
+		ls := strings.Split(s.ColumnMappingConfigs, ",")
+		for _, t := range ls {
+			cmc := strings.Split(t, "=")
+			if len(cmc) != 2 {
+				return errors.Errorf("column_mappings format error in rule")
 			}
-		} else {
-			for index, column := range s.TableInfo.Columns {
-				columnName := column.Name
-				if s.isExcludeField(columnName) {
-					continue
+			column := cmc[0]
+			mapped := cmc[1]
+			_, index := s.TableColumn(column)
+			if index < 0 {
+				return errors.Errorf("column_mappings must be table column")
+			}
+			mappings[strings.ToUpper(column)] = mapped
+		}
+	}
+
+	if len(s.EsMappings) > 0 {
+		for _, mapping := range s.EsMappings {
+			mappings[strings.ToUpper(mapping.Column)] = mapping.Field
+		}
+	}
+
+	if s.ValueFormatter != "" {
+		if r := regexp.MustCompile("\\${[^\\}]+\\}"); r != nil {
+			finds := r.FindAllString(s.ValueFormatter, -1)
+			for _, find := range finds {
+				matched := strings.ReplaceAll(find, "${", "")
+				matched = strings.ReplaceAll(matched, "}", "")
+				_, index := s.TableColumn(matched)
+				if index < 0 {
+					return errors.New("value_formatter must be table column")
 				}
-				c := s.TableInfo.Columns[index]
-				paddingMap[columnName] = s.newPadding(mappingMap, &c, columnName, index)
+				paddingMap[matched] = s.newPadding(mappings, matched)
 			}
 		}
-	} else { // Format
-		reg := regexp.MustCompile("\\${[^\\}]+\\}")
-		if reg != nil {
-			temps := reg.FindAllString(s.ValueFormatter, -1)
-			for _, temp := range temps {
-				str := strings.ReplaceAll(temp, "${", "")
-				str = strings.ReplaceAll(str, "}", "")
-				columnName := strings.ToUpper(str)
-				column, index := s.TableColumn(columnName)
-				if index < 0 {
-					return errors.New("val_format must be table column")
+		s.PaddingMap = paddingMap
+		return nil
+	}
+
+	var includes []string
+	var excludes []string
+
+	if s.IncludeColumnConfig != "" {
+		includes = strings.Split(s.IncludeColumnConfig, ",")
+	}
+	if s.ExcludeColumnConfig != "" {
+		excludes = strings.Split(s.ExcludeColumnConfig, ",")
+	}
+
+	if len(includes) > 0 {
+		for _, c := range includes {
+			_, index := s.TableColumn(c)
+			if index < 0 {
+				return errors.New("include_field must be table column")
+			}
+			paddingMap[c] = s.newPadding(mappings, c)
+		}
+	} else {
+		for _, column := range s.TableInfo.Columns {
+			include := true
+			for _, exclude := range excludes {
+				if column.Name == exclude {
+					include = false
 				}
-				paddingMap[columnName] = s.newPadding(mappingMap, column, columnName, index)
+			}
+			if include {
+				paddingMap[column.Name] = s.newPadding(mappings, column.Name)
 			}
 		}
 	}
@@ -290,6 +390,25 @@ func (s *Rule) buildPaddingMap() error {
 	s.PaddingMap = paddingMap
 
 	return nil
+}
+
+func (s *Rule) newPadding(mappings map[string]string, columnName string) *Padding {
+	column, index := s.TableColumn(columnName)
+
+	wrapName := s.WrapName(column.Name)
+	mapped, exist := mappings[strings.ToUpper(column.Name)]
+	if exist {
+		wrapName = mapped
+	}
+
+	return &Padding{
+		WrapName: wrapName,
+
+		ColumnIndex:    index,
+		ColumnName:     column.Name,
+		ColumnType:     column.Type,
+		ColumnMetadata: column,
+	}
 }
 
 func (s *Rule) TableColumn(field string) (*schema.TableColumn, int) {
@@ -301,26 +420,10 @@ func (s *Rule) TableColumn(field string) (*schema.TableColumn, int) {
 	return nil, -1
 }
 
-func (s *Rule) newPadding(fieldMapping map[string]string, column *schema.TableColumn, columnName string, columnIndex int) *Padding {
-	key := columnName
-	if m, b := fieldMapping[strings.ToUpper(columnName)]; b {
-		key = m
-	}
-	key = s.WrapName(key)
-
-	return &Padding{
-		Column:      column,
-		ColumnName:  columnName,
-		ColumnIndex: columnIndex,
-		WrapName:    key,
-	}
-}
-
 func (s *Rule) WrapName(fieldName string) string {
 	if s.ColumnUnderscoreToCamel {
 		return stringutil.Case2Camel(strings.ToLower(fieldName))
 	}
-
 	if s.ColumnLowerCase {
 		return strings.ToLower(fieldName)
 	}
@@ -328,20 +431,6 @@ func (s *Rule) WrapName(fieldName string) string {
 		return strings.ToUpper(fieldName)
 	}
 	return fieldName
-}
-
-func (s *Rule) isExcludeField(field string) bool {
-	if len(s.ExcludeColumnLs) == 0 {
-		return false
-	}
-
-	for _, t := range s.ExcludeColumnLs {
-		if strings.ToUpper(t) == strings.ToUpper(field) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (s *Rule) LuaNecessary() bool {
@@ -352,100 +441,158 @@ func (s *Rule) LuaNecessary() bool {
 	return true
 }
 
-func (s *Rule) enablePrimaryKey() {
-	s.RedisKeyIndexList = make([]int, 0, len(s.TableInfo.PKColumns))
-	for _, v := range s.TableInfo.PKColumns {
-		s.RedisKeyIndexList = append(s.RedisKeyIndexList, v)
+func (s *Rule) initRedisConfig() error {
+	if s.LuaNecessary() {
+		return nil
 	}
-	s.RedisKeyIndexListLen = len(s.RedisKeyIndexList)
+
+	if s.RedisStructure == "" {
+		return errors.Errorf("empty redis_structure not allowed in rule")
+	}
+
+	switch strings.ToUpper(s.RedisStructure) {
+	case "STRING":
+		s.RedisStructure = RedisStructureString
+		if s.RedisKeyColumn == "" && s.RedisKeyFormatter == "" {
+			if s.IsCompositeKey {
+				for _, v := range s.TableInfo.PKColumns {
+					s.RedisKeyColumnIndexs = append(s.RedisKeyColumnIndexs, v)
+				}
+				s.RedisKeyColumnIndex = -1
+			} else {
+				s.RedisKeyColumnIndex = s.TableInfo.PKColumns[0]
+			}
+		}
+	case "HASH":
+		s.RedisStructure = RedisStructureHash
+		if s.RedisKeyValue == "" {
+			return errors.New("empty redis_key_value not allowed")
+		}
+		// init hash field
+		if s.RedisHashFieldColumn == "" {
+			if s.IsCompositeKey {
+				for _, v := range s.TableInfo.PKColumns {
+					s.RedisHashFieldColumnIndexs = append(s.RedisHashFieldColumnIndexs, v)
+				}
+				s.RedisHashFieldColumnIndex = -1
+			} else {
+				s.RedisHashFieldColumnIndex = s.TableInfo.PKColumns[0]
+			}
+		} else {
+			_, index := s.TableColumn(s.RedisHashFieldColumn)
+			if index < 0 {
+				return errors.New("redis_hash_field_column must be table column")
+			}
+			s.RedisHashFieldColumnIndex = index
+		}
+	case "LIST":
+		s.RedisStructure = RedisStructureList
+		if s.RedisKeyValue == "" {
+			return errors.New("empty redis_key_value not allowed in rule")
+		}
+	case "SET":
+		s.RedisStructure = RedisStructureSet
+		if s.RedisKeyValue == "" {
+			return errors.New("empty redis_key_value not allowed in rule")
+		}
+	default:
+		return errors.Errorf(" redis_structure must be string or hash or list or set")
+	}
+
+	if s.RedisKeyColumn != "" {
+		_, index := s.TableColumn(s.RedisKeyColumn)
+		if index < 0 {
+			return errors.New("redis_key_column must be table column")
+		}
+		s.RedisHashFieldColumnIndex = index
+		s.RedisKeyFormatter = ""
+	}
+
+	if s.RedisKeyFormatter != "" {
+		indexMap := make(map[string]int)
+		reg := regexp.MustCompile("\\{[^\\}]+\\}")
+		if reg != nil {
+			temps := reg.FindAllString(s.RedisKeyFormatter, -1)
+			for _, temp := range temps {
+				columnName := strings.ReplaceAll(temp, "{", "")
+				columnName = strings.ReplaceAll(columnName, "}", "")
+				_, index := s.TableColumn(columnName)
+				if index < 0 {
+					return errors.New("redis_key_formatter must be table column")
+				}
+				indexMap[columnName] = index
+			}
+		}
+		if len(indexMap) == 0 {
+			return errors.New("redis_key_formatter error in rule")
+		}
+		s.RedisKeyColumnIndexMap = indexMap
+		s.RedisKeyFormatter = s.rewriteValFormat(s.RedisKeyFormatter)
+	}
+
+	return nil
 }
 
-func (s *Rule) initRedisConfig() error {
-	switch s.RedisStructure {
-	case RedisStructureString:
-		if !s.LuaNecessary() {
-			if s.RedisKeyColumn == "" && s.RedisKeyFormatter == "" {
-				s.enablePrimaryKey()
-			}
-		}
-	case RedisStructureHash:
-		if !s.LuaNecessary() {
-			if s.RedisKeyValue == "" {
-				return errors.New("empty redis_key_value not allowed")
-			}
-
-			// init hash field
-			s.RedisTableHashFieldIndexList = make([]int, 0, len(s.TableInfo.PKColumns))
-			if s.RedisHashFieldColumn == "" {
-				for _, v := range s.TableInfo.PKColumns {
-					s.RedisTableHashFieldIndexList = append(s.RedisTableHashFieldIndexList, v)
-				}
-				s.RedisTableHashFieldIndexListLen = len(s.RedisTableHashFieldIndexList)
-			} else {
-				_, index := s.TableColumn(s.RedisHashFieldColumn)
-				if index < 0 {
-					return errors.New("redis_hash_field_column must be table column")
-				}
-				s.RedisTableHashFieldIndexList = append(s.RedisTableHashFieldIndexList, index)
-				s.RedisTableHashFieldIndexListLen = 1
-			}
-		}
-	case RedisStructureList:
-		if !s.LuaNecessary() {
-			if s.RedisKeyValue == "" {
-				return errors.New("empty redis_key_value not allowed")
-			}
-		}
-	case RedisStructureSet:
-		if !s.LuaNecessary() {
-			if s.RedisKeyValue == "" {
-				return errors.New("empty redis_key_value not allowed")
-			}
-		}
-	}
-
+func (s *Rule) initRocketConfig() error {
 	if !s.LuaNecessary() {
-		if s.RedisKeyColumn != "" {
-			s.RedisKeyIndexList = make([]int, 0, len(s.TableInfo.PKColumns))
-			_, index := s.TableColumn(s.RedisKeyColumn)
-			if index < 0 {
-				return errors.New("redis_key_column must be table column")
-			}
-			s.RedisKeyIndexList = append(s.RedisKeyIndexList, index)
-			s.RedisKeyIndexListLen = 1
-			s.RedisKeyFormatter = ""
-		}
-
-		if s.RedisKeyFormatter != "" {
-			indexMap := make(map[string]int)
-			reg := regexp.MustCompile("\\{[^\\}]+\\}")
-			if reg != nil {
-				temps := reg.FindAllString(s.RedisKeyFormatter, -1)
-				for _, temp := range temps {
-					columnName := strings.ReplaceAll(temp, "{", "")
-					columnName = strings.ReplaceAll(columnName, "}", "")
-					_, index := s.TableColumn(columnName)
-					if index < 0 {
-						return errors.New("redis_key_formatter must be table column")
-					}
-					indexMap[columnName] = index
-				}
-			}
-			if len(indexMap) == 0 {
-				return errors.New("redis_key_formatter error in rule")
-			}
-			s.RedisKeyIndexMap = indexMap
-			s.RedisKeyFormatter = s.rewriteValFormat(s.RedisKeyFormatter)
+		if s.RocketmqTopic == "" {
+			s.RocketmqTopic = s.Table
 		}
 	}
 
 	return nil
 }
 
-func (s *Rule) initRocketmqConfig() error {
+func (s *Rule) initMongoConfig() error {
 	if !s.LuaNecessary() {
-		if s.RocketmqTopic == "" {
-			return errors.New("empty rocketmq_topic not allowed in rule")
+		if s.MongodbDatabase == "" {
+			return errors.New("empty mongodb_database not allowed in rule")
+		}
+
+		if s.MongodbCollection == "" {
+			s.MongodbCollection = s.Table
+		}
+	}
+
+	return nil
+}
+
+func (s *Rule) initRabbitmqConfig() error {
+	if !s.LuaNecessary() {
+		if s.RabbitmqQueue == "" {
+			s.RabbitmqQueue = s.Table
+		}
+	}
+
+	return nil
+}
+
+func (s *Rule) initElsConfig() error {
+	if s.ElsIndex == "" {
+		s.ElsIndex = s.Table
+	}
+
+	if len(s.EsMappings) > 0 {
+		for _, m := range s.EsMappings {
+			if m.Field == "" {
+				return errors.New("empty field not allowed in es_mappings")
+			}
+			if m.Type == "" {
+				return errors.New("empty type not allowed in es_mappings")
+			}
+			if m.Column == "" && !s.LuaNecessary() {
+				return errors.New("empty column not allowed in es_mappings")
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Rule) initKafkaConfig() error {
+	if !s.LuaNecessary() {
+		if s.KafkaTopic == "" {
+			s.KafkaTopic = s.Table
 		}
 	}
 
@@ -486,39 +633,37 @@ func (s *Rule) PreCompileLuaScript(dataDir string) error {
 
 	s.LuaScript = script
 
-	if !strings.Contains(script, "function") {
-		return errors.New("lua script incorrect format")
-	}
-
-	if !strings.Contains(script, "transfer(") {
-		return errors.New("lua script incorrect format")
-	}
-
-	if !strings.Contains(script, "transfer(") {
-		return errors.New("lua script incorrect format")
-	}
-
 	if _config.IsRedis() {
 		if !strings.Contains(script, `require("redisOps")`) {
 			return errors.New("lua script incorrect format")
 		}
-		switch s.RedisStructure {
-		case RedisStructureString:
-			if !strings.Contains(script, "SET(") {
-				return errors.New("lua script incorrect format")
-			}
-		case RedisStructureHash:
-			if !strings.Contains(script, "HSET(") {
-				return errors.New("lua script incorrect format")
-			}
-		case RedisStructureList:
-			if !strings.Contains(script, "RPUSH(") {
-				return errors.New("lua script incorrect format")
-			}
-		case RedisStructureSet:
-			if !strings.Contains(script, "SADD(") {
-				return errors.New("lua script incorrect format")
-			}
+
+		if !(strings.Contains(script, `SET(`) ||
+			strings.Contains(script, `HSET(`) ||
+			strings.Contains(script, `RPUSH(`) ||
+			strings.Contains(script, `SADD(`) ||
+			strings.Contains(script, `DEL(`) ||
+			strings.Contains(script, `HDEL(`) ||
+			strings.Contains(script, `LREM(`) ||
+			strings.Contains(script, `SREM(`)) {
+
+			return errors.New("lua script incorrect format")
+		}
+	}
+
+	if _config.IsRocketmq() {
+		if !strings.Contains(script, `require("mqOps")`) {
+			return errors.New("lua script incorrect format")
+		}
+
+		if !(strings.Contains(script, `SEND(`)) {
+			return errors.New("lua script incorrect format")
+		}
+	}
+
+	if _config.IsEls() {
+		if !strings.Contains(script, `require("esOps")`) {
+			return errors.New("lua script incorrect format")
 		}
 	}
 

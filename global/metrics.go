@@ -65,33 +65,23 @@ func SetLeaderState(state int) {
 }
 
 func SetDestinationState(state int) {
-	if _config.EnableExporter {
-		destinationState.Set(float64(state))
-	}
+	destinationState.Set(float64(state))
 }
 
 func SetTransferDelay(delay uint32) {
-	if _config.EnableExporter {
-		transferDelay.Set(float64(delay))
-	}
+	transferDelay.Set(float64(delay))
 }
 
 func IncInsertNum(lab string) {
-	if _config.EnableExporter {
-		insertNum.WithLabelValues(lab).Inc()
-	}
+	insertNum.WithLabelValues(lab).Inc()
 }
 
 func IncUpdateNum(lab string) {
-	if _config.EnableExporter {
-		updateNum.WithLabelValues(lab).Inc()
-	}
+	updateNum.WithLabelValues(lab).Inc()
 }
 
 func IncDeleteNum(lab string) {
-	if _config.EnableExporter {
-		deleteNum.WithLabelValues(lab).Inc()
-	}
+	deleteNum.WithLabelValues(lab).Inc()
 }
 
 func StartMonitor() {

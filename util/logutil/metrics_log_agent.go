@@ -9,5 +9,5 @@ func NewMetricsLoggerAgent() *MetricsLoggerAgent {
 
 // Info logs to INFO log. Arguments are handled in the manner of fmt.Print.
 func (s *MetricsLoggerAgent) Printf(format string, v ...interface{}) {
-		Infof(format, v)
+	Infof(format, v)
 }

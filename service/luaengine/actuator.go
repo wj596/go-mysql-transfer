@@ -2,16 +2,29 @@ package luaengine
 
 import (
 	"encoding/json"
+	lua "github.com/yuin/gopher-lua"
+
 	"go-mysql-transfer/util/byteutil"
 	"go-mysql-transfer/util/stringutil"
-
-	lua "github.com/yuin/gopher-lua"
 )
 
 const (
-	_globalVLS          = "___VLS___"
-	_globalTransferFunc = "transfer"
+	_globalRET = "___RET___"
+	_globalROW = "___ROW___"
+	_globalACT = "___ACT___"
 )
+
+func rawRow(L *lua.LState) int {
+	row := L.GetGlobal(_globalROW)
+	L.Push(row)
+	return 1
+}
+
+func rawAction(L *lua.LState) int {
+	act := L.GetGlobal(_globalACT)
+	L.Push(act)
+	return 1
+}
 
 func paddingTable(l *lua.LState, table *lua.LTable, kv map[string]interface{}) {
 	for k, v := range kv {
@@ -67,7 +80,7 @@ func paddingTable(l *lua.LState, table *lua.LTable, kv map[string]interface{}) {
 	}
 }
 
-func decodeString(lv lua.LValue) string {
+func lvToString(lv lua.LValue) string {
 	if lua.LVCanConvToString(lv) {
 		return lua.LVAsString(lv)
 	}
@@ -75,25 +88,25 @@ func decodeString(lv lua.LValue) string {
 	return lv.String()
 }
 
-func decodeValue(lv lua.LValue) interface{} {
+func lvToByteArray(lv lua.LValue) []byte {
 	switch lv.Type() {
-	case lua.LTTable:
-		t, ok := lv.(*lua.LTable)
-		if ok {
-			ret := make(map[string]interface{})
-			t.ForEach(func(k lua.LValue, v lua.LValue) {
-				key := stringutil.ToString(decodeBasicValue(k))
-				ret[key] = decodeBasicValue(v)
-			})
-			return ret
-		}
+	case lua.LTNil:
 		return nil
+	case lua.LTBool:
+		return byteutil.JsonBytes(lua.LVAsBool(lv))
+	case lua.LTNumber:
+		return []byte(lv.String())
+	case lua.LTString:
+		return []byte(lua.LVAsString(lv))
+	case lua.LTTable:
+		ret := lvToInterface(lv, false)
+		return byteutil.JsonBytes(ret)
 	default:
-		return decodeBasicValue(lv)
+		return byteutil.JsonBytes(lv)
 	}
 }
 
-func decodeBasicValue(lv lua.LValue) interface{} {
+func lvToInterface(lv lua.LValue, tableToJson bool) interface{} {
 	switch lv.Type() {
 	case lua.LTNil:
 		return nil
@@ -103,52 +116,40 @@ func decodeBasicValue(lv lua.LValue) interface{} {
 		return float64(lua.LVAsNumber(lv))
 	case lua.LTString:
 		return lua.LVAsString(lv)
+	case lua.LTTable:
+		t, _ := lv.(*lua.LTable)
+		len := t.MaxN()
+		if len == 0 { // table
+			ret := make(map[string]interface{})
+			t.ForEach(func(key, value lua.LValue) {
+				ret[lvToString(key)] = lvToInterface(value, false)
+			})
+			if tableToJson {
+				return stringutil.ToJsonString(ret)
+			}
+			return ret
+		} else { // array
+			ret := make([]interface{}, 0, len)
+			for i := 1; i <= len; i++ {
+				ret = append(ret, lvToInterface(t.RawGetInt(i), false))
+			}
+			if tableToJson {
+				return stringutil.ToJsonString(ret)
+			}
+			return ret
+		}
 	default:
-		return stringutil.ToJsonString(lv)
+		return lv
 	}
 }
 
-func decodeByteArray(lv lua.LValue) []byte {
+func lvToMap(lv lua.LValue) (map[string]interface{}, bool) {
 	switch lv.Type() {
-	case lua.LTNil:
-		return nil
-	case lua.LTBool:
-		var err error
-		var ret []byte
-		if lua.LVAsBool(lv) {
-			ret, err = byteutil.Uint8ToBytes(1)
-		} else {
-			ret, err = byteutil.Uint8ToBytes(0)
-		}
-		if err != nil {
-			return nil
-		}
-		return ret
-	case lua.LTNumber:
-		t := float64(lua.LVAsNumber(lv))
-		return byteutil.Float64ToByte(t)
-	case lua.LTString:
-		return []byte(lua.LVAsString(lv))
 	case lua.LTTable:
-		t, ok := lv.(*lua.LTable)
-		if ok {
-			ret := make(map[string]interface{})
-			t.ForEach(func(k lua.LValue, v lua.LValue) {
-				key := stringutil.ToString(decodeValue(k))
-				ret[key] = decodeValue(v)
-			})
-			data, err := json.Marshal(ret)
-			if err != nil {
-				return nil
-			}
-			return data
-		}
-		return nil
+		t := lvToInterface(lv, false)
+		ret := t.(map[string]interface{})
+		return ret, true
 	default:
-		data, err := json.Marshal(lv)
-		if err != nil {
-			return nil
-		}
-		return data
+		return nil, false
 	}
 }

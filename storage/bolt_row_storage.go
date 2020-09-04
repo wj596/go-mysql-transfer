@@ -40,25 +40,25 @@ func (s *BoltRowStorage) BatchAdd(list [][]byte) {
 	})
 }
 
-func (s *BoltRowStorage) IdList() ([][]byte, error) {
-	ls := make([][]byte, 0)
-	err := _bolt.View(func(tx *bbolt.Tx) error {
+func (s *BoltRowStorage) IdList() []uint64 {
+	ls := make([]uint64, 0)
+	_bolt.View(func(tx *bbolt.Tx) error {
 		bt := tx.Bucket(_rowRequestBucket)
 		cursor := bt.Cursor()
 		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
-			ls = append(ls, k)
+			ls = append(ls, byteutil.BytesToUint64(k))
 		}
 		return nil
 	})
 
-	return ls, err
+	return ls
 }
 
-func (s *BoltRowStorage) Get(key []byte) ([]byte, error) {
+func (s *BoltRowStorage) Get(key uint64) ([]byte, error) {
 	var entity []byte
 	err := _bolt.View(func(tx *bbolt.Tx) error {
 		bt := tx.Bucket(_rowRequestBucket)
-		data := bt.Get(key)
+		data := bt.Get(byteutil.Uint64ToBytes(key))
 		if data == nil {
 			return errors.NotFoundf("Row")
 		}
@@ -74,9 +74,9 @@ func (s *BoltRowStorage) Get(key []byte) ([]byte, error) {
 	return entity, nil
 }
 
-func (s *BoltRowStorage) Delete(key []byte) error {
+func (s *BoltRowStorage) Delete(key uint64) error {
 	return _bolt.Update(func(tx *bbolt.Tx) error {
 		bt := tx.Bucket(_rowRequestBucket)
-		return bt.Delete(key)
+		return bt.Delete(byteutil.Uint64ToBytes(key))
 	})
 }
