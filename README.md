@@ -81,17 +81,19 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 # 使用说明
 
-1、[同步到Redis操作说明](https://www.jianshu.com/p/c533659a1d83?_blank)
+1、[go-mysql-transfer实现详解](https://www.jianshu.com/p/dce9160d298c?_blank)
 
-2、[同步到MongoDB操作说明](https://www.jianshu.com/p/51124c9371f9?_blank)
+2、[同步到Redis操作说明](https://www.jianshu.com/p/c533659a1d83?_blank)
 
-3、[同步到Elasticsearch操作说明](https://www.jianshu.com/p/5a9b6c4f318c?_blank)
+3、[同步到MongoDB操作说明](https://www.jianshu.com/p/51124c9371f9?_blank)
 
-4、[同步到RocketMQ操作说明](https://www.jianshu.com/p/18bb121bbf63?_blank) 
+4、[同步到Elasticsearch操作说明](https://www.jianshu.com/p/5a9b6c4f318c?_blank)
 
-5、[同步到Kafka操作说明](https://www.jianshu.com/p/aec8e4c28c06?_blank)
+5、[同步到RocketMQ操作说明](https://www.jianshu.com/p/18bb121bbf63?_blank) 
 
-6、[同步到RabbitMQ操作说明](https://www.jianshu.com/p/ba5f1d3c75f2?_blank)
+6、[同步到Kafka操作说明](https://www.jianshu.com/p/aec8e4c28c06?_blank)
+
+7、[同步到RabbitMQ操作说明](https://www.jianshu.com/p/ba5f1d3c75f2?_blank)
 
 # 技术栈
 
