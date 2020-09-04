@@ -1,30 +1,31 @@
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
-# 项目简介
+# 简介
 
 go-mysql-transfer是一款MySQL数据实时增量同步工具。能够实时解析MySQL二进制日志binlog，并生成指定格式的消息，同步到接收端。
 
-# 功能特性  
+# 特性  
 
-- 不依赖其它组件，一键部署
+1、不依赖其它组件，一键部署
 
-- 集成多种接收端，如：Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、NSQ、HTTP等
+2、集成多种接收端，如：Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ，不需要再编写客户端，开箱即用
 
-- 基于规则或者动态脚本进行数据解析和消息生成，方便扩展
+3、内置丰富的数据解析、消息生成规则；支持Lua脚本扩展，以处理更复杂的数据逻辑
 
-- 集成prometheus客户端，支持监控告警
+4、集成Prometheus客户端，支持监控告警
 
-- 支持高可用集群，可选Zookeeper或Ectd
+5、支持高可用集群部署
 
-- 支持失败重试
+6、数据同步失败重试
 
-- 支持全量数据初始化
+7、全量数据初始化
 
-# 实现原理
 
-1、go-mysql-transfer将自己伪装为MySQL Slave向Master发送dump协议，获取binlog
+# 原理
 
-2、go-mysql-transfer根据的规则，或者lua脚本解析数据，生成消息
+1、将自己伪装为MySQL Slave向Master发送dump协议，获取binlog
+
+2、根据规则或者lua脚本解析数据，生成消息
 
 3、将生成的消息批量发送给接收端
 
@@ -34,7 +35,7 @@ go-mysql-transfer是一款MySQL数据实时增量同步工具。能够实时解�
 | ---------- | ---------- | ------------ | ------------------------------------------------------------ |
 | 开发语言   | Java       | Python       | Golang                                                       |
 | HA         | 支持       | 支持         | 支持                                                         |
-| 接收端   | 编码定制 | Kafka等      | Redis、MongoDB、Elasticsearch、RabbitMQ、<br />Kafka、RocketMQ、NSQ、HTTP接口等 |
+| 接收端   | 编码定制 | Kafka等      | Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ<br />后续支持更多 |
 | 数据初始化 | 不支持     | 支持         | 支持                                                         |
 | 数据格式   | 编码定制 | json（固定） | 规则 (固定)<br />lua脚本 (定制)     
 
@@ -60,6 +61,18 @@ go-mysql-transfer -stock
 
 # 运行
 
+**开启MySQL的binlog**
+
+```
+#Linux在my.cnf文件
+#Windows在my.ini文件
+log-bin=mysql-bin # 开启 binlog
+binlog-format=ROW # 选择 ROW 模式
+server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer 的 slave_id 重复
+```
+
+**命令行运行**
+
 1、修改app.yml
 
 2、Windows直接运行 go-mysql-transfer.exe
@@ -68,23 +81,17 @@ go-mysql-transfer -stock
 
 # 使用说明
 
-[go-mysql-transfer实现详解](https://www.jianshu.com/p/dce9160d298c?_blank)
+1、[同步到Redis操作说明](https://www.jianshu.com/p/c533659a1d83?_blank)
 
-[go-mysql-transfer增量同步数据到Redis操作说明](https://www.jianshu.com/p/c533659a1d83?_blank)
+2、[同步到MongoDB操作说明](https://www.jianshu.com/p/51124c9371f9?_blank)
 
-go-mysql-transfer增量同步数据到MongoDB操作说明(待补充)
+3、[同步到Elasticsearch操作说明](https://www.jianshu.com/p/5a9b6c4f318c?_blank)
 
-go-mysql-transfer增量同步数据到Elasticsearch操作说明(待补充)
+4、[同步到RocketMQ操作说明](https://www.jianshu.com/p/18bb121bbf63?_blank) 
 
-go-mysql-transfer增量同步数据到RabbitMQ操作说明(待补充)
+5、[同步到Kafka操作说明](https://www.jianshu.com/p/aec8e4c28c06?_blank)
 
-go-mysql-transfer增量同步数据到Kafka操作说明(待补充)
-
-go-mysql-transfer增量同步数据到RocketMQ操作说明(待补充)
-
-go-mysql-transfer增量同步数据到NSQ操作说明(待补充)
-
-go-mysql-transfer增量同步数据到HTTP接口操作说明(待补充)
+6、[同步到RabbitMQ操作说明](https://www.jianshu.com/p/ba5f1d3c75f2?_blank)
 
 # 技术栈
 
@@ -101,7 +108,7 @@ go-mysql-transfer增量同步数据到HTTP接口操作说明(待补充)
 
 # 更新日志
 
-**v1.0.0 bate1**
+**v1.0.0 bate**
 
-* 初始化提交bate1版本
+* 初始化提交bate版本
 
