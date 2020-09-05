@@ -2,7 +2,7 @@
 
 # 简介
 
-go-mysql-transfer是一款MySQL数据实时增量同步工具。能够实时解析MySQL二进制日志binlog，并生成指定格式的消息，同步到接收端。
+go-mysql-transfer是使用Go语言实现的MySQL数据库实时增量同步工具。能够实时监听MySQL二进制日志(binlog)的变动，将变更内容形成指定格式的消息，发送到接收端。在数据库和接收端之间形成一个高性能、低延迟的增量数据(Binlog)同步管道。
 
 # 特性  
 
@@ -23,9 +23,9 @@ go-mysql-transfer是一款MySQL数据实时增量同步工具。能够实时解�
 
 # 原理
 
-1、将自己伪装为MySQL Slave向Master发送dump协议，获取binlog
+1、将自己伪装为MySQL的Slave监听binlog，获取binlog的变更数据
 
-2、根据规则或者lua脚本解析数据，生成消息
+2、根据规则或者lua脚本解析数据，生成指定格式的消息
 
 3、将生成的消息批量发送给接收端
 
