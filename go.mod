@@ -6,6 +6,7 @@ require (
 	github.com/Shopify/sarama v1.27.0
 	github.com/apache/rocketmq-client-go/v2 v2.0.0
 	github.com/go-redis/redis v6.15.8+incompatible
+	github.com/go-sql-driver/mysql v1.5.0
 	github.com/jmoiron/sqlx v1.2.0 // indirect
 	github.com/juju/errors v0.0.0-20200330140219-3fe23663418f
 	github.com/juju/testing v0.0.0-20200706033705-4c23f9c453cd // indirect

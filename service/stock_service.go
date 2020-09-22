@@ -89,23 +89,23 @@ func (s *StockService) Run() error {
 		var processed atomic.Int64
 		for i := 0; i < _threads; i++ {
 			s.wg.Add(1)
-			go func() {
+			go func(_fullName string, _rule *global.Rule) {
 				for {
 					processed.Inc()
-					requests, err := s.export(fullName, processed.Load(), rule)
+					requests, err := s.export(_fullName, processed.Load(), _rule)
 					if err != nil {
 						fmt.Println(err.Error())
 						s.shutoff.Store(true)
 						break
 					}
 
-					s.imports(fullName, requests, processed.Load())
+					s.imports(_fullName, requests, processed.Load())
 					if processed.Load() > batch {
 						break
 					}
 				}
 				s.wg.Done()
-			}()
+			}(fullName, rule)
 		}
 	}
 
@@ -136,7 +136,7 @@ func (s *StockService) export(fullName string, batch int64, rule *global.Rule) (
 	sql := fmt.Sprintf("select * from %s order by %s limit %d,%d", fullName, rule.OrderByColumn, offset, s.pageSize)
 	resultSet, err := s.transfer.canal.Execute(sql)
 	if err != nil {
-		logutil.Errorf(fmt.Sprintf("数据导出错误: %s", err.Error()))
+		logutil.Errorf(fmt.Sprintf("数据导出错误: %s - %s", sql, err.Error()))
 		return nil, err
 	}
 	rowNumber := resultSet.RowNumber()
@@ -147,7 +147,7 @@ func (s *StockService) export(fullName string, batch int64, rule *global.Rule) (
 		for j := 0; j < len(rule.TableInfo.Columns); j++ {
 			val, err := resultSet.GetValue(i, j)
 			if err != nil {
-				logutil.Errorf(fmt.Sprintf("数据导出错误: %s", err.Error()))
+				logutil.Errorf(fmt.Sprintf("数据导出错误: %s - %s", sql, err.Error()))
 				break
 			}
 			rowValues = append(rowValues, val)
