@@ -346,6 +346,10 @@ func checkElsConfig(c *Config) error {
 		return errors.Errorf("empty es_addrs not allowed")
 	}
 
+	if !strings.HasPrefix(c.ElsAddr, "http") {
+		c.ElsAddr = "http://" + c.ElsAddr
+	}
+
 	if c.ElsVersion == 0 {
 		c.ElsVersion = 7
 	}
