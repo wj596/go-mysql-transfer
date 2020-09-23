@@ -115,6 +115,7 @@ type Rule struct {
 
 	// ------------------- ES -----------------
 	ElsIndex   string       `yaml:"es_index"`    //Elasticsearch Index,可以为空，默认使用表(Table)名称
+	ElsType    string       `yaml:"es_type"`     //es6.x以后一个Index只能拥有一个Type,可以为空，默认使用_doc; es7.x版本此属性无效
 	EsMappings []*EsMapping `yaml:"es_mappings"` //Elasticsearch mappings映射关系,可以为空，为空时根据数据类型自己推导
 
 	// --------------- no config ----------------
@@ -587,6 +588,10 @@ func (s *Rule) initRabbitmqConfig() error {
 func (s *Rule) initElsConfig() error {
 	if s.ElsIndex == "" {
 		s.ElsIndex = s.Table
+	}
+
+	if s.ElsType == "" {
+		s.ElsType = "_doc"
 	}
 
 	if len(s.EsMappings) > 0 {

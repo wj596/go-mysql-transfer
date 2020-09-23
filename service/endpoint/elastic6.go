@@ -97,7 +97,9 @@ func (s *Elastic6Endpoint) insertIndexMapping(rule *global.Rule) error {
 
 	mapping := map[string]interface{}{
 		"mappings": map[string]interface{}{
-			"properties": properties,
+			rule.ElsType: map[string]interface{}{
+				"properties": properties,
+			},
 		},
 	}
 	body := stringutil.ToJsonString(mapping)
@@ -121,7 +123,19 @@ func (s *Elastic6Endpoint) updateIndexMapping(rule *global.Rule) error {
 	}
 	retIndex := ret[rule.ElsIndex].(map[string]interface{})
 	retMaps := retIndex["mappings"].(map[string]interface{})
-	retPros := retMaps["properties"].(map[string]interface{})
+	if retMaps == nil {
+		return nil
+	}
+
+	retDoc := retMaps["_doc"].(map[string]interface{})
+	if retMaps == nil {
+		return nil
+	}
+
+	retPros := retDoc["properties"].(map[string]interface{})
+	if retPros == nil {
+		return nil
+	}
 
 	var currents map[string]interface{}
 	if rule.LuaNecessary() {
@@ -141,7 +155,7 @@ func (s *Elastic6Endpoint) updateIndexMapping(rule *global.Rule) error {
 			}
 		}
 		doc := stringutil.ToJsonString(mapping)
-		ret, err := s.client.PutMapping().Index(rule.ElsIndex).BodyString(doc).Do(context.Background())
+		ret, err := s.client.PutMapping().Index(rule.ElsIndex).Type(rule.ElsType).BodyString(doc).Do(context.Background())
 		if err != nil {
 			return err
 		}
@@ -196,14 +210,14 @@ func (s *Elastic6Endpoint) Consume(rows []*global.RowRequest) {
 			}
 			for _, resp := range ls {
 				logutil.Infof("action: %s, Index: %s , Id:%s, value: %v", resp.Action, resp.Index, resp.Id, resp.Date)
-				s.prepareBulk(resp.Action, resp.Index, resp.Id, resp.Date, bulk)
+				s.prepareBulk(resp.Action, resp.Index, rule.ElsType, resp.Id, resp.Date, bulk)
 			}
 		} else {
 			kvm := keyValueMap(row, rule, false)
 			id := primaryKey(row, rule)
 			body := encodeStringValue(rule, kvm)
 			logutil.Infof("action: %s, Index: %s , Id:%s, value: %v", row.Action, rule.ElsIndex, id, body)
-			s.prepareBulk(row.Action, rule.ElsIndex, stringutil.ToString(id), body, bulk)
+			s.prepareBulk(row.Action, rule.ElsIndex, rule.ElsType, stringutil.ToString(id), body, bulk)
 		}
 
 		global.RowRequestPool.Put(row)
@@ -223,6 +237,10 @@ func (s *Elastic6Endpoint) Consume(rows []*global.RowRequest) {
 }
 
 func (s *Elastic6Endpoint) Stock(rows []*global.RowRequest) int64 {
+	if len(rows) == 0 {
+		return 0
+	}
+
 	bulk := s.client.Bulk()
 	for _, row := range rows {
 		rule, _ := global.RuleIns(row.RuleKey)
@@ -239,55 +257,52 @@ func (s *Elastic6Endpoint) Stock(rows []*global.RowRequest) int64 {
 				break
 			}
 			for _, resp := range ls {
-				s.prepareBulk(resp.Action, resp.Index, resp.Id, resp.Date, bulk)
+				s.prepareBulk(resp.Action, resp.Index, rule.ElsType, resp.Id, resp.Date, bulk)
 			}
 		} else {
 			kvm := keyValueMap(row, rule, false)
 			id := primaryKey(row, rule)
 			body := encodeStringValue(rule, kvm)
-			s.prepareBulk(row.Action, rule.ElsIndex, stringutil.ToString(id), body, bulk)
+			s.prepareBulk(row.Action, rule.ElsIndex, rule.ElsType, stringutil.ToString(id), body, bulk)
 		}
-	}
-
-	if bulk.NumberOfActions() == 0 {
-		return 0
 	}
 
 	r, err := bulk.Do(context.Background())
 	if err != nil {
 		logutil.Error(errors.ErrorStack(err))
+		return 0
 	}
 
 	return int64(len(r.Succeeded()))
 }
 
-func (s *Elastic6Endpoint) prepareBulk(action, index, id, doc string, bulk *elastic.BulkService) {
+func (s *Elastic6Endpoint) prepareBulk(action, index, _type, id, doc string, bulk *elastic.BulkService) {
 	switch action {
 	case canal.InsertAction:
-		req := elastic.NewBulkIndexRequest().Index(index).Id(id).Doc(doc)
+		req := elastic.NewBulkIndexRequest().Index(index).Type(_type).Id(id).Doc(doc)
 		bulk.Add(req)
 	case canal.UpdateAction:
-		req := elastic.NewBulkUpdateRequest().Index(index).Id(id).Doc(doc)
+		req := elastic.NewBulkUpdateRequest().Index(index).Type(_type).Id(id).Doc(doc)
 		bulk.Add(req)
 	case canal.DeleteAction:
-		req := elastic.NewBulkDeleteRequest().Index(index).Id(id)
+		req := elastic.NewBulkDeleteRequest().Index(index).Type(_type).Id(id)
 		bulk.Add(req)
 	}
-	logutil.Infof("index: %s, action:%s, doc: %s", index, action, doc)
+	logutil.Infof("index: %s, type:%s, action:%s, doc: %s", index, _type, action, doc)
 }
 
-func (s *Elastic6Endpoint) doRequest(action, index, id, doc string) error {
+func (s *Elastic6Endpoint) doRequest(action, index, _type, id, doc string) error {
 
 	logutil.Infof("index: %s, action:%s, doc: %s", index, action, doc)
 	switch action {
 	case canal.InsertAction:
-		_, err := s.client.Index().Index(index).Id(id).BodyString(doc).Do(context.Background())
+		_, err := s.client.Index().Index(index).Type(_type).Id(id).BodyString(doc).Do(context.Background())
 		return err
 	case canal.UpdateAction:
-		_, err := s.client.Update().Index(index).Id(id).Doc(doc).Do(context.Background())
+		_, err := s.client.Update().Index(index).Type(_type).Id(id).Doc(doc).Do(context.Background())
 		return err
 	case canal.DeleteAction:
-		_, err := s.client.Delete().Index(index).Id(id).Do(context.Background())
+		_, err := s.client.Delete().Index(index).Type(_type).Id(id).Do(context.Background())
 		return err
 	}
 
@@ -332,7 +347,7 @@ func (s *Elastic6Endpoint) doRetryTask() error {
 				return errors.Errorf("lua 脚本执行失败 : %s ", errors.ErrorStack(err))
 			}
 			for _, resp := range ls {
-				err = s.doRequest(resp.Action, resp.Index, resp.Id, resp.Date)
+				err = s.doRequest(resp.Action, resp.Index, rule.ElsType, resp.Id, resp.Date)
 				if err != nil {
 					return err
 				}
@@ -341,7 +356,7 @@ func (s *Elastic6Endpoint) doRetryTask() error {
 			kvm := keyValueMap(&row, rule, false)
 			id := primaryKey(&row, rule)
 			body := encodeStringValue(rule, kvm)
-			err = s.doRequest(row.Action, rule.ElsIndex, stringutil.ToString(id), body)
+			err = s.doRequest(row.Action, rule.ElsIndex, rule.ElsType, stringutil.ToString(id), body)
 			if err != nil {
 				return err
 			}

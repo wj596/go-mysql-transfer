@@ -19,8 +19,6 @@ package endpoint
 
 import (
 	"context"
-	"fmt"
-
 	"github.com/juju/errors"
 	"github.com/olivere/elastic/v7"
 	"github.com/siddontang/go-mysql/canal"
@@ -123,7 +121,14 @@ func (s *Elastic7Endpoint) updateIndexMapping(rule *global.Rule) error {
 	}
 	retIndex := ret[rule.ElsIndex].(map[string]interface{})
 	retMaps := retIndex["mappings"].(map[string]interface{})
+	if retMaps == nil {
+		return nil
+	}
+
 	retPros := retMaps["properties"].(map[string]interface{})
+	if retPros == nil {
+		return nil
+	}
 
 	var currents map[string]interface{}
 	if rule.LuaNecessary() {
@@ -152,7 +157,7 @@ func (s *Elastic7Endpoint) updateIndexMapping(rule *global.Rule) error {
 			return errors.Errorf("update index %s err", rule.ElsIndex)
 		}
 
-		logutil.Infof("create index: %s ,properties: %s", rule.ElsIndex, doc)
+		logutil.Infof("update index: %s ,properties: %s", rule.ElsIndex, doc)
 	}
 
 	return nil
@@ -234,6 +239,10 @@ func (s *Elastic7Endpoint) Consume(rows []*global.RowRequest) {
 }
 
 func (s *Elastic7Endpoint) Stock(rows []*global.RowRequest) int64 {
+	if len(rows) == 0 {
+		return 0
+	}
+
 	bulk := s.client.Bulk()
 	for _, row := range rows {
 		rule, _ := global.RuleIns(row.RuleKey)
@@ -256,24 +265,14 @@ func (s *Elastic7Endpoint) Stock(rows []*global.RowRequest) int64 {
 			kvm := keyValueMap(row, rule, false)
 			id := primaryKey(row, rule)
 			body := encodeStringValue(rule, kvm)
-			fmt.Println(body)
 			s.prepareBulk(row.Action, rule.ElsIndex, stringutil.ToString(id), body, bulk)
 		}
-	}
-
-	if bulk.NumberOfActions() == 0 {
-		return 0
 	}
 
 	r, err := bulk.Do(context.Background())
 	if err != nil {
 		logutil.Error(errors.ErrorStack(err))
-	}
-
-	if len(r.Failed()) > 0 {
-		for _, f := range r.Failed() {
-			fmt.Println(f.Error.Reason)
-		}
+		return 0
 	}
 
 	return int64(len(r.Succeeded()))
