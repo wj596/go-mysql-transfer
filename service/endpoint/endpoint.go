@@ -18,10 +18,10 @@
 package endpoint
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
-	"github.com/pquerna/ffjson/ffjson"
 	"github.com/siddontang/go-mysql/canal"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/schema"
@@ -123,9 +123,9 @@ func convertColumnData(value interface{}, col *schema.TableColumn, rule *global.
 		var err error
 		switch v := value.(type) {
 		case string:
-			err = ffjson.Unmarshal([]byte(v), &f)
+			err = json.Unmarshal([]byte(v), &f)
 		case []byte:
-			err = ffjson.Unmarshal(v, &f)
+			err = json.Unmarshal(v, &f)
 		}
 		if err == nil && f != nil {
 			return f
@@ -171,8 +171,13 @@ func encodeStringValue(rule *global.Rule, kv map[string]interface{}) string {
 
 	switch rule.ValueEncoder {
 	case global.ValEncoderJson:
-		data, _ := ffjson.Marshal(kv)
-		val = string(data)
+		data, err := json.Marshal(kv)
+		if err != nil {
+			logutil.Error(err.Error())
+			val = ""
+		} else {
+			val = string(data)
+		}
 	case global.ValEncoderKVCommas:
 		var ls []string
 		for k, v := range kv {

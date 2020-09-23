@@ -275,6 +275,12 @@ func (s *Elastic7Endpoint) Stock(rows []*global.RowRequest) int64 {
 		return 0
 	}
 
+	if len(r.Failed()) > 0 {
+		for _, f := range r.Failed() {
+			logutil.Error(f.Error.Reason)
+		}
+	}
+
 	return int64(len(r.Succeeded()))
 }
 

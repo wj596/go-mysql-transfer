@@ -22,6 +22,7 @@ import (
 	"go.uber.org/atomic"
 	"log"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/juju/errors"
@@ -66,6 +67,7 @@ func (s *StockService) Run() error {
 			return errors.New("empty order_by_column not allowed")
 		}
 
+		exportColumns := s.exportColumns(rule)
 		fullName := fmt.Sprintf("%s.%s", rule.Schema, rule.Table)
 		log.Println(fmt.Sprintf("开始导出 %s", fullName))
 
@@ -89,12 +91,12 @@ func (s *StockService) Run() error {
 		var processed atomic.Int64
 		for i := 0; i < _threads; i++ {
 			s.wg.Add(1)
-			go func(_fullName string, _rule *global.Rule) {
+			go func(_fullName, _columns string, _rule *global.Rule) {
 				for {
 					processed.Inc()
-					requests, err := s.export(_fullName, processed.Load(), _rule)
+					requests, err := s.export(_fullName, _columns, processed.Load(), _rule)
 					if err != nil {
-						fmt.Println(err.Error())
+						logutil.Error(err.Error())
 						s.shutoff.Store(true)
 						break
 					}
@@ -105,7 +107,7 @@ func (s *StockService) Run() error {
 					}
 				}
 				s.wg.Done()
-			}(fullName, rule)
+			}(fullName, exportColumns, rule)
 		}
 	}
 
@@ -126,17 +128,16 @@ func (s *StockService) Run() error {
 	return nil
 }
 
-func (s *StockService) export(fullName string, batch int64, rule *global.Rule) ([]*global.RowRequest, error) {
+func (s *StockService) export(fullName, columns string, batch int64, rule *global.Rule) ([]*global.RowRequest, error) {
 	if s.shutoff.Load() {
-		log.Println("shutoff at batch :", batch)
 		return nil, errors.New("shutoff")
 	}
 
 	offset := s.offset(batch)
-	sql := fmt.Sprintf("select * from %s order by %s limit %d,%d", fullName, rule.OrderByColumn, offset, s.pageSize)
+	sql := fmt.Sprintf("select %s from %s order by %s limit %d,%d", columns, fullName, rule.OrderByColumn, offset, s.pageSize)
 	resultSet, err := s.transfer.canal.Execute(sql)
 	if err != nil {
-		logutil.Errorf(fmt.Sprintf("数据导出错误: %s - %s", sql, err.Error()))
+		logutil.Errorf("数据导出错误: %s - %s", sql, err.Error())
 		return nil, err
 	}
 	rowNumber := resultSet.RowNumber()
@@ -147,7 +148,7 @@ func (s *StockService) export(fullName string, batch int64, rule *global.Rule) (
 		for j := 0; j < len(rule.TableInfo.Columns); j++ {
 			val, err := resultSet.GetValue(i, j)
 			if err != nil {
-				logutil.Errorf(fmt.Sprintf("数据导出错误: %s - %s", sql, err.Error()))
+				logutil.Errorf("数据导出错误: %s - %s", sql, err.Error())
 				break
 			}
 			rowValues = append(rowValues, val)
@@ -163,13 +164,58 @@ func (s *StockService) export(fullName string, batch int64, rule *global.Rule) (
 
 func (s *StockService) imports(fullName string, requests []*global.RowRequest, processed int64) {
 	if s.shutoff.Load() {
-		log.Println("shutoff at batch :", processed)
 		return
 	}
 
 	succeeds := s.transfer.endpoint.Stock(requests)
 	count := s.incCounter(fullName, succeeds)
 	log.Println(fmt.Sprintf("%s 导入数据 %d 条", fullName, count))
+}
+
+func (s *StockService) exportColumns(rule *global.Rule) string {
+	if rule.IncludeColumnConfig != "" {
+		var columns string
+		includes := strings.Split(rule.IncludeColumnConfig, ",")
+		for _, c := range rule.TableInfo.Columns {
+			for _, e := range includes {
+				var column string
+				if strings.ToUpper(e) == strings.ToUpper(c.Name) {
+					column = c.Name
+				} else {
+					column = "null as " + c.Name
+				}
+
+				if columns != "" {
+					columns = columns + ","
+				}
+				columns = columns + column
+			}
+		}
+		return columns
+	}
+
+	if rule.ExcludeColumnConfig != "" {
+		var columns string
+		excludes := strings.Split(rule.ExcludeColumnConfig, ",")
+		for _, c := range rule.TableInfo.Columns {
+			for _, e := range excludes {
+				var column string
+				if strings.ToUpper(e) == strings.ToUpper(c.Name) {
+					column = "null as " + c.Name
+				} else {
+					column = c.Name
+				}
+
+				if columns != "" {
+					columns = columns + ","
+				}
+				columns = columns + column
+			}
+		}
+		return columns
+	}
+
+	return "*"
 }
 
 func (s *StockService) offset(currentPage int64) int64 {
