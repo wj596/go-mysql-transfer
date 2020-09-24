@@ -64,6 +64,10 @@ func main() {
 	n := runtime.GOMAXPROCS(runtime.NumCPU())
 	log.Println(fmt.Sprintf("GOMAXPROCS :%d", n))
 
+
+	//cfgPath  = "D:\\transfer\\app_elasticsearch.yml"
+	//stockFlag   =true
+
 	err := service.InitApplication(cfgPath)
 	if err != nil {
 		println(errors.ErrorStack(err))

@@ -19,6 +19,7 @@ package endpoint
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -86,7 +87,6 @@ func convertColumnData(value interface{}, col *schema.TableColumn, rule *global.
 				logutil.Warnf("invalid binlog enum index %d, for enum %v", eNum, col.EnumValues)
 				return ""
 			}
-
 			return col.EnumValues[eNum]
 		}
 	case schema.TYPE_SET:
@@ -151,6 +151,24 @@ func convertColumnData(value interface{}, col *schema.TableColumn, rule *global.
 			return vt.Format(rule.DateFormatter)
 		case []byte:
 			return string(v)
+		}
+	case schema.TYPE_DECIMAL, schema.TYPE_NUMBER:
+		switch v := value.(type) {
+		case string:
+			vv, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				logutil.Error(err.Error())
+				return nil
+			}
+			return vv
+		case []byte:
+			str := string(v)
+			vv, err := strconv.ParseFloat(str, 64)
+			if err != nil {
+				logutil.Error(err.Error())
+				return nil
+			}
+			return vv
 		}
 	}
 
