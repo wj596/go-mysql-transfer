@@ -37,10 +37,11 @@ import (
 )
 
 const (
-	RedisStructureString = "1"
-	RedisStructureHash   = "2"
-	RedisStructureList   = "3"
-	RedisStructureSet    = "4"
+	RedisStructureString    = "String"
+	RedisStructureHash      = "Hash"
+	RedisStructureList      = "List"
+	RedisStructureSet       = "Set"
+	RedisStructureSortedSet = "SortedSet"
 
 	ValEncoderJson     = "json"
 	ValEncoderKVCommas = "kv-commas"
@@ -93,12 +94,14 @@ type Rule struct {
 	RedisHashFieldPrefix string `yaml:"redis_hash_field_prefix"`
 	// 使用哪个列的值作为hash的field，仅redis_structure为hash时起作用
 	RedisHashFieldColumn string `yaml:"redis_hash_field_column"`
-
-	RedisKeyColumnIndex        int
-	RedisKeyColumnIndexs       []int
-	RedisKeyColumnIndexMap     map[string]int
-	RedisHashFieldColumnIndex  int
-	RedisHashFieldColumnIndexs []int
+	// Sorted Set(有序集合)的Score
+	RedisSortedSetScoreColumn      string `yaml:"redis_sorted_set_score_column"`
+	RedisKeyColumnIndex            int
+	RedisKeyColumnIndexs           []int
+	RedisKeyColumnIndexMap         map[string]int
+	RedisHashFieldColumnIndex      int
+	RedisHashFieldColumnIndexs     []int
+	RedisSortedSetScoreColumnIndex int
 
 	// ------------------- ROCKETMQ -----------------
 	RocketmqTopic string `yaml:"rocketmq_topic"` //rocketmq topic名称，可以为空，为空时使用表名称
@@ -189,21 +192,6 @@ func RuleInsList() []*Rule {
 	}
 
 	return list
-}
-
-func StructureName(structure string) string {
-	switch structure {
-	case RedisStructureString:
-		return "string"
-	case RedisStructureHash:
-		return "hash"
-	case RedisStructureList:
-		return "list"
-	case RedisStructureSet:
-		return "set"
-	}
-
-	return ""
 }
 
 func (s *Rule) Initialize() error {
@@ -513,8 +501,21 @@ func (s *Rule) initRedisConfig() error {
 		if s.RedisKeyValue == "" {
 			return errors.New("empty redis_key_value not allowed in rule")
 		}
+	case "SORTEDSET":
+		s.RedisStructure = RedisStructureSortedSet
+		if s.RedisKeyValue == "" {
+			return errors.New("empty redis_key_value not allowed in rule")
+		}
+		if s.RedisSortedSetScoreColumn == "" {
+			return errors.New("empty redis_sorted_set_score_column not allowed in rule")
+		}
+		_, index := s.TableColumn(s.RedisSortedSetScoreColumn)
+		if index < 0 {
+			return errors.New("redis_sorted_set_score_column must be table column")
+		}
+		s.RedisHashFieldColumnIndex = index
 	default:
-		return errors.Errorf(" redis_structure must be string or hash or list or set")
+		return errors.Errorf("redis_structure must be string or hash or list or set")
 	}
 
 	if s.RedisKeyColumn != "" {
@@ -664,9 +665,11 @@ func (s *Rule) PreCompileLuaScript(dataDir string) error {
 			strings.Contains(script, `HSET(`) ||
 			strings.Contains(script, `RPUSH(`) ||
 			strings.Contains(script, `SADD(`) ||
+			strings.Contains(script, `ZADD(`) ||
 			strings.Contains(script, `DEL(`) ||
 			strings.Contains(script, `HDEL(`) ||
 			strings.Contains(script, `LREM(`) ||
+			strings.Contains(script, `ZREM(`) ||
 			strings.Contains(script, `SREM(`)) {
 
 			return errors.New("lua script incorrect format")

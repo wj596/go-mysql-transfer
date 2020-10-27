@@ -91,6 +91,15 @@ func ToUint64Safe(str string) uint64 {
 	return v
 }
 
+// 转换为Uint64
+func ToFloat64Safe(str string) float64 {
+	v, e := strconv.ParseFloat(str, 64)
+	if nil != e {
+		return 0
+	}
+	return v
+}
+
 // Uint64转换为String
 func Uint64ToStr(u uint64) string {
 	return strconv.FormatUint(u, 10)

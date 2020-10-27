@@ -46,6 +46,9 @@ var _redisModuleApi = map[string]lua.LGFunction{
 
 	"SADD": redisSAdd,
 	"SREM": redisSRem,
+
+	"ZADD": redisZAdd,
+	"ZREM": redisZRem,
 }
 
 func redisSet(L *lua.LState) int {
@@ -128,6 +131,30 @@ func redisSRem(L *lua.LState) int {
 	return 0
 }
 
+func redisZAdd(L *lua.LState) int {
+	key := L.CheckString(1)
+	score := L.CheckAny(2)
+	val := L.CheckAny(3)
+
+	hash := L.NewTable()
+	L.SetTable(hash, lua.LString("key"), lua.LString(key))
+	L.SetTable(hash, lua.LString("score"), score)
+	L.SetTable(hash, lua.LString("val"), val)
+
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("insert_5_"+stringutil.UUID()), hash)
+	return 0
+}
+
+func redisZRem(L *lua.LState) int {
+	key := L.CheckString(1)
+	val := L.CheckAny(2)
+
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("delete_5_"+key), val)
+	return 0
+}
+
 func DoRedisOps(input map[string]interface{}, action string, rule *global.Rule) ([]*global.RedisRespond, error) {
 	L := _pool.Get()
 	defer _pool.Put(L)
@@ -161,6 +188,14 @@ func DoRedisOps(input map[string]interface{}, action string, rule *global.Rule) 
 			val := L.GetTable(v, lua.LString("val"))
 			resp.Key = key.String()
 			resp.Field = lvToString(field)
+			resp.Val = lvToInterface(val, true)
+		} else if structure == global.RedisStructureSortedSet {
+			key := L.GetTable(v, lua.LString("key"))
+			score := L.GetTable(v, lua.LString("score"))
+			val := L.GetTable(v, lua.LString("val"))
+			resp.Key = key.String()
+			scoreTemp := lvToString(score)
+			resp.Score = stringutil.ToFloat64Safe(scoreTemp)
 			resp.Val = lvToInterface(val, true)
 		} else {
 			resp.Key = kk[9:len(kk)]

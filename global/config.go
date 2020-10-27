@@ -177,6 +177,8 @@ func NewConfigWithFile(name string) (*Config, error) {
 		if err := checkElsConfig(&c); err != nil {
 			return nil, errors.Trace(err)
 		}
+	default:
+		return nil, errors.Errorf("unsupported target: %s", c.Target)
 	}
 
 	_config = &c
@@ -358,6 +360,10 @@ func checkElsConfig(c *Config) error {
 		return errors.Errorf("elasticsearch version must 6 or 7")
 	}
 
+	return nil
+}
+
+func checkLuaConfig(c *Config) error {
 	return nil
 }
 

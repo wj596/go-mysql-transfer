@@ -62,7 +62,7 @@ func (s *TransferService) initialize() error {
 	}
 
 	// 初始化 endpoint
-	_endpoint := endpoint.NewEndpoint(s.config)
+	_endpoint := endpoint.NewEndpoint(s.config, s.canal)
 	if err := _endpoint.Start(); err != nil {
 		return errors.Trace(err)
 	}

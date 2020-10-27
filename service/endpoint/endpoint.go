@@ -29,6 +29,7 @@ import (
 	"github.com/vmihailenco/msgpack"
 
 	"go-mysql-transfer/global"
+	"go-mysql-transfer/service/luaengine"
 	"go-mysql-transfer/storage"
 	"go-mysql-transfer/util/logutil"
 	"go-mysql-transfer/util/stringutil"
@@ -42,7 +43,9 @@ type Endpoint interface {
 	Close()
 }
 
-func NewEndpoint(c *global.Config) Endpoint {
+func NewEndpoint(c *global.Config, ds *canal.Canal) Endpoint {
+	luaengine.InitActuator(ds)
+
 	if c.IsRedis() {
 		return newRedisEndpoint(c)
 	}
@@ -76,11 +79,14 @@ func NewEndpoint(c *global.Config) Endpoint {
 }
 
 func convertColumnData(value interface{}, col *schema.TableColumn, rule *global.Rule) interface{} {
+	if value == nil {
+		return nil
+	}
+
 	switch col.Type {
 	case schema.TYPE_ENUM:
 		switch value := value.(type) {
 		case int64:
-			// for binlog, ENUM may be int64, but for dump, enum is string
 			eNum := value - 1
 			if eNum < 0 || eNum >= int64(len(col.EnumValues)) {
 				// we insert invalid enum value before, so return empty
@@ -88,11 +94,14 @@ func convertColumnData(value interface{}, col *schema.TableColumn, rule *global.
 				return ""
 			}
 			return col.EnumValues[eNum]
+		case string:
+			return value
+		case []byte:
+			return string(value)
 		}
 	case schema.TYPE_SET:
 		switch value := value.(type) {
 		case int64:
-			// for binlog, SET may be int64, but for dump, SET is string
 			bitmask := value
 			sets := make([]string, 0, len(col.SetValues))
 			for i, s := range col.SetValues {
@@ -105,12 +114,9 @@ func convertColumnData(value interface{}, col *schema.TableColumn, rule *global.
 	case schema.TYPE_BIT:
 		switch value := value.(type) {
 		case string:
-			// for binlog, BIT is int64, but for dump, BIT is string
-			// for dump 0x01 is for 1, \0 is for 0
 			if value == "\x01" {
 				return int64(1)
 			}
-
 			return int64(0)
 		}
 	case schema.TYPE_STRING:
@@ -225,6 +231,28 @@ func keyValueMap(re *global.RowRequest, rule *global.Rule, primitive bool) map[s
 
 	for _, padding := range rule.PaddingMap {
 		kv[padding.WrapName] = convertColumnData(re.Row[padding.ColumnIndex], padding.ColumnMetadata, rule)
+	}
+
+	if rule.DefaultColumnValueConfig != "" {
+		for k, v := range rule.DefaultColumnValueMap {
+			kv[rule.WrapName(k)] = v
+		}
+	}
+
+	return kv
+}
+
+func oldKeyValueMap(request *global.RowRequest, rule *global.Rule, primitive bool) map[string]interface{} {
+	kv := make(map[string]interface{}, len(rule.PaddingMap))
+	if primitive {
+		for _, padding := range rule.PaddingMap {
+			kv[padding.ColumnName] = convertColumnData(request.OldRow[padding.ColumnIndex], padding.ColumnMetadata, rule)
+		}
+		return kv
+	}
+
+	for _, padding := range rule.PaddingMap {
+		kv[padding.WrapName] = convertColumnData(request.OldRow[padding.ColumnIndex], padding.ColumnMetadata, rule)
 	}
 
 	if rule.DefaultColumnValueConfig != "" {

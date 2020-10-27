@@ -19,7 +19,10 @@ package luaengine
 
 import (
 	"encoding/json"
+	luaJson "github.com/layeh/gopher-json"
+	"github.com/siddontang/go-mysql/canal"
 	lua "github.com/yuin/gopher-lua"
+	"sync"
 
 	"go-mysql-transfer/util/byteutil"
 	"go-mysql-transfer/util/stringutil"
@@ -30,6 +33,65 @@ const (
 	_globalROW = "___ROW___"
 	_globalACT = "___ACT___"
 )
+
+var (
+	_pool *luaStatePool
+	_ds   *canal.Canal
+)
+
+type luaStatePool struct {
+	lock  sync.Mutex
+	saved []*lua.LState
+}
+
+func InitActuator(ds *canal.Canal) {
+	_ds = ds
+	_pool = &luaStatePool{
+		saved: make([]*lua.LState, 0, 3),
+	}
+}
+
+func (p *luaStatePool) Get() *lua.LState {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	n := len(p.saved)
+	if n == 0 {
+		return p.New()
+	}
+	x := p.saved[n-1]
+	p.saved = p.saved[0 : n-1]
+	return x
+}
+
+func (p *luaStatePool) New() *lua.LState {
+	L := lua.NewState()
+
+	luaJson.Preload(L)
+
+	L.PreloadModule("dbOps", dbModule)
+	L.PreloadModule("httpOps", httpModule)
+
+	L.PreloadModule("redisOps", redisModule)
+	L.PreloadModule("mqOps", mqModule)
+	L.PreloadModule("mongodbOps", mongoModule)
+	L.PreloadModule("esOps", esModule)
+
+	return L
+}
+
+func (p *luaStatePool) Put(L *lua.LState) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.saved = append(p.saved, L)
+}
+
+func (p *luaStatePool) Shutdown() {
+	for _, L := range p.saved {
+		L.Close()
+	}
+}
 
 func rawRow(L *lua.LState) int {
 	row := L.GetGlobal(_globalROW)
@@ -169,4 +231,57 @@ func lvToMap(lv lua.LValue) (map[string]interface{}, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func interfaceToLv(v interface{}) lua.LValue {
+	switch v.(type) {
+	case float64:
+		ft := v.(float64)
+		return lua.LNumber(ft)
+	case float32:
+		ft := v.(float32)
+		return lua.LNumber(ft)
+	case int:
+		ft := v.(int)
+		return lua.LNumber(ft)
+	case uint:
+		ft := v.(uint)
+		return lua.LNumber(ft)
+	case int8:
+		ft := v.(int8)
+		return lua.LNumber(ft)
+	case uint8:
+		ft := v.(uint8)
+		return lua.LNumber(ft)
+	case int16:
+		ft := v.(int16)
+		return lua.LNumber(ft)
+	case uint16:
+		ft := v.(uint16)
+		return lua.LNumber(ft)
+	case int32:
+		ft := v.(int32)
+		return lua.LNumber(ft)
+	case uint32:
+		ft := v.(uint32)
+		return lua.LNumber(ft)
+	case int64:
+		ft := v.(int64)
+		return lua.LNumber(ft)
+	case uint64:
+		ft := v.(uint64)
+		return lua.LNumber(ft)
+	case string:
+		ft := v.(string)
+		return lua.LString(ft)
+	case []byte:
+		ft := string(v.([]byte))
+		return lua.LString(ft)
+	case nil:
+		return lua.LNil
+	default:
+		jsonValue, _ := json.Marshal(v)
+		return lua.LString(jsonValue)
+	}
+
 }

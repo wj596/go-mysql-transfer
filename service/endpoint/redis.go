@@ -129,8 +129,7 @@ func (s *RedisEndpoint) Consume(rows []*global.RowRequest) {
 			for _, resp := range ls {
 				s.preparePipe(resp, pipe)
 
-				logutil.Infof("action: %s, structure: %s ,key: %s ,field: %s, value: %v",
-					resp.Action, global.StructureName(resp.Structure), resp.Key, resp.Field, resp.Val)
+				logutil.Infof("action: %s, structure: %s ,key: %s ,field: %s, value: %v", resp.Action, resp.Structure, resp.Key, resp.Field, resp.Val)
 
 				global.RedisRespondPool.Put(resp)
 			}
@@ -138,8 +137,7 @@ func (s *RedisEndpoint) Consume(rows []*global.RowRequest) {
 			resp := s.ruleRespond(row, rule)
 			s.preparePipe(resp, pipe)
 
-			logutil.Infof("action: %s, structure: %s ,key: %s ,field: %s, value: %v",
-				resp.Action, global.StructureName(resp.Structure), resp.Key, resp.Field, resp.Val)
+			logutil.Infof("action: %s, structure: %s ,key: %s ,field: %s, value: %v", resp.Action, resp.Structure, resp.Key, resp.Field, resp.Val)
 
 			global.RedisRespondPool.Put(resp)
 		}
@@ -214,8 +212,28 @@ func (s *RedisEndpoint) ruleRespond(row *global.RowRequest, rule *global.Rule) *
 	if resp.Structure == global.RedisStructureHash {
 		resp.Field = s.encodeHashField(row, rule)
 	}
-	if resp.Action != canal.DeleteAction {
+	if resp.Structure == global.RedisStructureSortedSet {
+		resp.Score = s.encodeSortedSetScoreField(row, rule)
+	}
+
+	if resp.Action == canal.InsertAction {
 		resp.Val = encodeStringValue(rule, kvm)
+	} else if resp.Action == canal.UpdateAction {
+		if rule.RedisStructure == global.RedisStructureList ||
+			rule.RedisStructure == global.RedisStructureSet ||
+			rule.RedisStructure == global.RedisStructureSortedSet {
+
+			oldKvm := oldKeyValueMap(row, rule, false)
+			resp.OldVal = encodeStringValue(rule, oldKvm)
+		}
+		resp.Val = encodeStringValue(rule, kvm)
+	} else {
+		if rule.RedisStructure == global.RedisStructureList ||
+			rule.RedisStructure == global.RedisStructureSet ||
+			rule.RedisStructure == global.RedisStructureSortedSet {
+
+			resp.Val = encodeStringValue(rule, kvm)
+		}
 	}
 
 	return resp
@@ -238,14 +256,31 @@ func (s *RedisEndpoint) preparePipe(resp *global.RedisRespond, pipe redis.Cmdabl
 	case global.RedisStructureList:
 		if resp.Action == canal.DeleteAction {
 			pipe.LRem(resp.Key, 0, resp.Val)
+		} else if resp.Action == canal.UpdateAction {
+			pipe.LRem(resp.Key, 0, resp.OldVal)
+			pipe.RPush(resp.Key, resp.Val)
 		} else {
 			pipe.RPush(resp.Key, resp.Val)
 		}
 	case global.RedisStructureSet:
 		if resp.Action == canal.DeleteAction {
 			pipe.SRem(resp.Key, resp.Val)
+		} else if resp.Action == canal.UpdateAction {
+			pipe.SRem(resp.Key, 0, resp.OldVal)
+			pipe.SAdd(resp.Key, resp.Val)
 		} else {
 			pipe.SAdd(resp.Key, resp.Val)
+		}
+	case global.RedisStructureSortedSet:
+		if resp.Action == canal.DeleteAction {
+			pipe.ZRem(resp.Key, resp.Val)
+		} else if resp.Action == canal.UpdateAction {
+			pipe.ZRem(resp.Key, 0, resp.OldVal)
+			val := redis.Z{Score: resp.Score, Member: resp.Val}
+			pipe.ZAdd(resp.Key, val)
+		} else {
+			val := redis.Z{Score: resp.Score, Member: resp.Val}
+			pipe.ZAdd(resp.Key, val)
 		}
 	}
 }
@@ -307,6 +342,19 @@ func (s *RedisEndpoint) doCmd(resp *global.RedisRespond) error {
 				return r.Err()
 			}
 		}
+	case global.RedisStructureSortedSet:
+		if resp.Action == canal.DeleteAction {
+			r := cmd.ZRem(resp.Key, resp.Val)
+			if r.Err() != nil {
+				return r.Err()
+			}
+		} else {
+			val := redis.Z{Score: resp.Score, Member: resp.Val}
+			r := cmd.SAdd(resp.Key, val)
+			if r.Err() != nil {
+				return r.Err()
+			}
+		}
 	}
 
 	return nil
@@ -352,8 +400,7 @@ func (s *RedisEndpoint) doRetryTask() error {
 			for _, resp := range ls {
 				err = s.doCmd(resp)
 
-				logutil.Infof("retry: action: %s, structure: %s ,key: %s ,field: %s, value: %v",
-					resp.Action, global.StructureName(resp.Structure), resp.Key, resp.Field, resp.Val)
+				logutil.Infof("retry: action: %s, structure: %s ,key: %s ,field: %s, value: %v", resp.Action, resp.Structure, resp.Key, resp.Field, resp.Val)
 
 				global.RedisRespondPool.Put(resp)
 				if err != nil {
@@ -364,8 +411,7 @@ func (s *RedisEndpoint) doRetryTask() error {
 			resp := s.ruleRespond(&row, rule)
 			err = s.doCmd(resp)
 
-			logutil.Infof("retry: action: %s, structure: %s ,key: %s ,field: %s, value: %v",
-				resp.Action, global.StructureName(resp.Structure), resp.Key, resp.Field, resp.Val)
+			logutil.Infof("retry: action: %s, structure: %s ,key: %s ,field: %s, value: %v", resp.Action, resp.Structure, resp.Key, resp.Field, resp.Val)
 
 			global.RedisRespondPool.Put(resp)
 			if err != nil {
@@ -381,7 +427,12 @@ func (s *RedisEndpoint) doRetryTask() error {
 }
 
 func (s *RedisEndpoint) encodeKey(re *global.RowRequest, rule *global.Rule) string {
+	if rule.RedisKeyValue != "" {
+		return rule.RedisKeyValue
+	}
+
 	var key string
+
 	if rule.RedisKeyFormatter != "" {
 		for column, index := range rule.RedisKeyColumnIndexMap {
 			val := stringutil.ToString(re.Row[index])
@@ -422,6 +473,16 @@ func (s *RedisEndpoint) encodeHashField(re *global.RowRequest, rule *global.Rule
 	}
 
 	return field
+}
+
+func (s *RedisEndpoint) encodeSortedSetScoreField(re *global.RowRequest, rule *global.Rule) float64 {
+	obj := re.Row[rule.RedisHashFieldColumnIndex]
+	if obj == nil {
+		return 0
+	}
+
+	str := stringutil.ToString(obj)
+	return stringutil.ToFloat64Safe(str)
 }
 
 func (s *RedisEndpoint) Close() {

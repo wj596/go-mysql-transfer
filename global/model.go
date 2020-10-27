@@ -18,13 +18,15 @@
 package global
 
 import (
-	"github.com/siddontang/go-mysql/schema"
 	"sync"
+
+	"github.com/siddontang/go-mysql/schema"
 )
 
 type RowRequest struct {
 	RuleKey string
 	Action  string
+	OldRow  []interface{}
 	Row     []interface{}
 }
 
@@ -39,6 +41,8 @@ type RedisRespond struct {
 	Structure string
 	Key       string
 	Field     string
+	Score     float64
+	OldVal    interface{}
 	Val       interface{}
 }
 

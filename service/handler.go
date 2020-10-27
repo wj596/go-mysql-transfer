@@ -86,6 +86,9 @@ func (h *handler) OnRow(e *canal.RowsEvent) error {
 				rr := global.RowRequestPool.Get().(*global.RowRequest)
 				rr.RuleKey = ruleKey
 				rr.Action = e.Action
+				if h.transfer.config.IsRedis() {
+					rr.OldRow = e.Rows[i-1]
+				}
 				rr.Row = e.Rows[i]
 				requests = append(requests, rr)
 			}
