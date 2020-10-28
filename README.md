@@ -120,3 +120,10 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 * 9.22  release
 
+**v1.0.2 release**
+
+* 添加dbOps（数据库操作）、httpOps（http操作）两个Lua模块
+* 修复enum类型字段出现的乱码问题
+* redis接收端增加*Sorted*  Set数据类型支持
+* 修复了近来反馈的bug
+
