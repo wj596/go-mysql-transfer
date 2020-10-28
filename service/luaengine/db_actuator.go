@@ -18,6 +18,7 @@
 package luaengine
 
 import (
+	json "github.com/layeh/gopher-json"
 	lua "github.com/yuin/gopher-lua"
 	"go-mysql-transfer/util/logutil"
 )
@@ -37,6 +38,8 @@ var _dbModuleApi = map[string]lua.LGFunction{
 func selectOne(L *lua.LState) int {
 	sql := L.CheckString(1)
 
+	logutil.Infof("lua db module execute sql: %s", sql)
+
 	rs, err := _ds.Execute(sql)
 	if err != nil {
 		logutil.Error(err.Error())
@@ -46,7 +49,7 @@ func selectOne(L *lua.LState) int {
 	}
 	rowNumber := rs.RowNumber()
 
-	ret := L.NewTable()
+	table := L.NewTable()
 	if rowNumber > 1 {
 		logutil.Error("return more than 1 row")
 		L.Push(lua.LNil)
@@ -54,28 +57,33 @@ func selectOne(L *lua.LState) int {
 		return 2
 	}
 
-	columnNumber := rs.ColumnNumber()
 	if rowNumber == 1 {
-		for j := 0; j < columnNumber; j++ {
-			v, err := rs.GetValue(0, j)
+		for field, index := range rs.FieldNames {
+			v, err := rs.GetValue(0, index)
 			if err != nil {
 				logutil.Error(err.Error())
 				L.Push(lua.LNil)
 				L.Push(lua.LString(err.Error()))
 				return 2
 			}
-			key := lua.LNumber(j)
 			val := interfaceToLv(v)
-			ret.RawSet(key, val)
+			L.SetTable(table, lua.LString(field), val)
 		}
 	}
 
-	L.Push(ret)
+	if data, err := json.Encode(table); err == nil {
+		logutil.Infof("lua db module result: %s", string(data))
+	}
+
+	L.Push(table)
 	return 1
 }
 
 func selectList(L *lua.LState) int {
 	sql := L.CheckString(1)
+
+	logutil.Infof("lua db module execute sql: %s", sql)
+
 	rs, err := _ds.Execute(sql)
 	if err != nil {
 		logutil.Error(err.Error())
@@ -87,21 +95,27 @@ func selectList(L *lua.LState) int {
 
 	ret := L.NewTable()
 	if rowNumber > 0 {
-		columnNumber := rs.ColumnNumber()
 		for i := 0; i < rowNumber; i++ {
-			for j := 0; j < columnNumber; j++ {
-				v, err := rs.GetValue(i, j)
+			table := L.NewTable()
+			for field, index := range rs.FieldNames {
+				v, err := rs.GetValue(i, index)
 				if err != nil {
 					logutil.Error(err.Error())
 					L.Push(lua.LNil)
 					L.Push(lua.LString(err.Error()))
 					return 2
 				}
-				key := lua.LNumber(j)
 				val := interfaceToLv(v)
-				ret.RawSet(key, val)
+				L.SetTable(table, lua.LString(field), val)
 			}
+			L.SetTable(ret, lua.LNumber(i+1), table)
 		}
+	}
+
+	if data, err := json.Encode(ret); err == nil {
+		logutil.Infof("lua db module result: %s", string(data))
+	} else {
+		logutil.Error(err.Error())
 	}
 
 	L.Push(ret)

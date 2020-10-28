@@ -119,8 +119,16 @@ func (s *RedisEndpoint) Consume(rows []*global.RowRequest) {
 		exportActionNum(row.Action, row.RuleKey)
 
 		if rule.LuaNecessary() {
+			var err error
+			var ls []*global.RedisRespond
 			kvm := keyValueMap(row, rule, true)
-			ls, err := luaengine.DoRedisOps(kvm, row.Action, rule)
+			if row.Action == canal.UpdateAction {
+				previous := oldKeyValueMap(row, rule, true)
+				ls, err = luaengine.DoRedisOps(kvm, previous, row.Action, rule)
+			} else {
+				ls, err = luaengine.DoRedisOps(kvm, nil, row.Action, rule)
+			}
+
 			if err != nil {
 				logutil.Errorf("lua 脚本执行失败 : %s ", errors.ErrorStack(err))
 				expect = false
@@ -169,7 +177,7 @@ func (s *RedisEndpoint) Stock(rows []*global.RowRequest) int64 {
 
 		if rule.LuaNecessary() {
 			kvm := keyValueMap(row, rule, true)
-			ls, err := luaengine.DoRedisOps(kvm, row.Action, rule)
+			ls, err := luaengine.DoRedisOps(kvm, nil, row.Action, rule)
 			if err != nil {
 				logutil.Errorf("lua 脚本执行失败 : %s ", errors.ErrorStack(err))
 				break
@@ -350,7 +358,7 @@ func (s *RedisEndpoint) doCmd(resp *global.RedisRespond) error {
 			}
 		} else {
 			val := redis.Z{Score: resp.Score, Member: resp.Val}
-			r := cmd.SAdd(resp.Key, val)
+			r := cmd.ZAdd(resp.Key, val)
 			if r.Err() != nil {
 				return r.Err()
 			}
@@ -392,8 +400,16 @@ func (s *RedisEndpoint) doRetryTask() error {
 
 		rule, _ := global.RuleIns(row.RuleKey)
 		if rule.LuaNecessary() {
+			var err error
+			var ls []*global.RedisRespond
 			kvm := keyValueMap(&row, rule, true)
-			ls, err := luaengine.DoRedisOps(kvm, row.Action, rule)
+			if row.Action == canal.UpdateAction {
+				previous := oldKeyValueMap(&row, rule, true)
+				ls, err = luaengine.DoRedisOps(kvm, previous, row.Action, rule)
+			} else {
+				ls, err = luaengine.DoRedisOps(kvm, nil, row.Action, rule)
+			}
+
 			if err != nil {
 				return errors.New(fmt.Sprintf("lua 脚本执行失败 : %s ", errors.ErrorStack(err)))
 			}

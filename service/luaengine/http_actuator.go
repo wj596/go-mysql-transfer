@@ -18,6 +18,7 @@
 package luaengine
 
 import (
+	"fmt"
 	lua "github.com/yuin/gopher-lua"
 
 	"go-mysql-transfer/util/httputil"
@@ -102,6 +103,7 @@ func doPost(L *lua.LState) int {
 	}
 
 	contents, ok := lvToMap(paramContents)
+	fmt.Println("contents: ",contents)
 	if !ok {
 		logutil.Error("The argument must Table")
 		L.Push(lua.LNil)

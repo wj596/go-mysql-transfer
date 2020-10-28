@@ -64,8 +64,8 @@ func main() {
 	n := runtime.GOMAXPROCS(runtime.NumCPU())
 	log.Println(fmt.Sprintf("GOMAXPROCS :%d", n))
 
-	cfgPath = "D:\\transfer\\app_redis.yml"
-	//stockFlag = true
+	// cfgPath = "D:\\transfer\\app_redis_lua.yml"
+	// stockFlag = true
 
 	err := service.InitApplication(cfgPath)
 	if err != nil {

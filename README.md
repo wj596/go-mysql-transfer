@@ -95,6 +95,8 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 7、[同步到RabbitMQ操作说明](https://www.jianshu.com/p/ba5f1d3c75f2?_blank)
 
+7、[让go-mysql-transfer具备无尽的扩展能力（^_^）Lua脚本使用说明](https://www.jianshu.com/p/c4b0147d65a7?_blank)
+
 # 技术栈
 
 * [go-mysql](github.com/siddontang/go-mysql)
@@ -117,10 +119,4 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 **v1.0.1 release**
 
 * 9.22  release
-
-**v1.0.2 release**
-
-* Lua引擎增加数据库操作（dbOps）模块、 http操作(httpOps)模块
-* 修复enum类型出现的乱码问题
-* redis增加Sorted Set数据类型
 
