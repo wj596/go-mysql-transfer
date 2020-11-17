@@ -97,7 +97,7 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 8、[让go-mysql-transfer具备无尽的扩展能力（^_^）Lua脚本使用说明](https://www.jianshu.com/p/c4b0147d65a7?_blank)
 
-# 技术栈
+# 感谢
 
 * [go-mysql](github.com/siddontang/go-mysql)
 
@@ -107,7 +107,7 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 * [rocketmq-client-go](https://github.com/apache/rocketmq-client-go)
 
-感谢以上优秀的开源框架
+
 
 
 # 更新日志
