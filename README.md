@@ -92,9 +92,9 @@ go-mysql-transfer是一款MySQL数据库实时增量同步工具。
 
 2、设置' GO111MODULE=on '
 
-3、拉取源码 ‘ go get -d github.com/wj596/go-mysql-transfer’
+3、拉取源码 ' git clone https://github.com/wj596/go-mysql-transfer.git '
 
-3、进入目录，执行 ‘ go build ’ 编译
+4、进入目录，执行 ' go build '编译
 
 # 全量数据初始化
 
