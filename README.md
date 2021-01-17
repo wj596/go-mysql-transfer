@@ -122,40 +122,40 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 # 使用说明
 
-* <a href="https://www.kancloud.cn/wj596/go-mysql-transfer/2116627" target="_blank">高可用集群</a>
-* [同步数据到Redis](同步数据到Redis.md)
-    * [Redis配置](redis配置.md)
-    * [基于规则同步](基于规则同步.md)
-    * [基于Lua脚本同步](基于Lua脚本同步.md)
-* [同步数据到MongoDB](同步到MongoDB.md)
-    * [MongoDB配置](MongoDB配置.md)
-    * [基于规则同步](mongodb基于规则同步.md)
-    * [基于Lua脚本同步](mongodb基于Lua脚本同步.md)
-* [同步数据到RocketMQ](同步数据到RocketMQ.md)
-    * [RocketMQ配置](RocketMQ配置.md)
-    * [基于规则同步](RocketMQ基于规则同步.md)
-    * [基于Lua脚本同步](RocketMQ基于Lua脚本同步.md)
-* [同步数据到Kafka](同步数据到Kafka.md)
-    * [Kafka配置](Kafka配置.md)
-    * [基于规则同步](Kafka基于规则同步.md)
-    * [基于Lua脚本同步](Kafka基于Lua脚本同步.md)
-* [同步数据到RabbitMQ](同步数据到RabbitMQ.md)
-    * [RabbitMQ配置](RabbitMQ配置.md)
-    * [基于规则同步](RabbitMQ基于规则同步.md)
-    * [基于Lua脚本同步](RabbitMQ基于Lua脚本同步.md)
-* [同步数据到Elasticsearch](同步数据到Elasticsearch.md)
-    * [Elasticsearch配置](Elasticsearch配置.md)
-    * [基于规则同步](Elasticsearch基于规则同步.md)
-    * [基于Lua脚本同步](Elasticsearch基于Lua脚本同步.md)
-* [全量数据导入](全量数据导入.md)
-* [Lua脚本](Lua模块.md)
-    * [基础模块](基础模块.md)
-    * [Json模块](Json模块.md)
-    * [HttpClient模块](HttpClient模块.md)
-    * [DBClient模块](DBClient模块.md)
-* [监控](监控.md)
-* [性能测试](性能测试.md)
-* [常见问题](常见问题.md)
+* [高可用集群](https://www.kancloud.cn/wj596/go-mysql-transfer/2116627)
+* [同步数据到Redis](https://www.kancloud.cn/wj596/go-mysql-transfer/2064427)
+    * [Redis配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2111996)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2111997)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2111998)
+* [同步数据到MongoDB](https://www.kancloud.cn/wj596/go-mysql-transfer/2064428)
+    * [MongoDB配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2111999)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112000)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112001)
+* [同步数据到RocketMQ](https://www.kancloud.cn/wj596/go-mysql-transfer/2064429)
+    * [RocketMQ配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2112002)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112003)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112004)
+* [同步数据到Kafka](https://www.kancloud.cn/wj596/go-mysql-transfer/2064430)
+    * [Kafka配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2112005)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112006)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112007)
+* [同步数据到RabbitMQ](https://www.kancloud.cn/wj596/go-mysql-transfer/2064431)
+    * [RabbitMQ配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2112008)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112009)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112010)
+* [同步数据到Elasticsearch](https://www.kancloud.cn/wj596/go-mysql-transfer/2064432)
+    * [Elasticsearch配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2112011)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112012)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112013)
+* [全量数据导入](https://www.kancloud.cn/wj596/go-mysql-transfer/2116628)
+* [Lua脚本](https://www.kancloud.cn/wj596/go-mysql-transfer/2064433)
+    * [基础模块](https://www.kancloud.cn/wj596/go-mysql-transfer/2112014)
+    * [Json模块](https://www.kancloud.cn/wj596/go-mysql-transfer/2112015)
+    * [HttpClient模块](https://www.kancloud.cn/wj596/go-mysql-transfer/2112016)
+    * [DBClient模块](https://www.kancloud.cn/wj596/go-mysql-transfer/2112017)
+* [监控](https://www.kancloud.cn/wj596/go-mysql-transfer/2064434)
+* [性能测试](https://www.kancloud.cn/wj596/go-mysql-transfer/2116629)
+* [常见问题](https://www.kancloud.cn/wj596/go-mysql-transfer/2064435)
 
 
 # 感谢
@@ -187,4 +187,11 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 * 修复enum类型字段出现的乱码问题
 * redis接收端增加*Sorted*  Set数据类型支持
 * 修复了近来反馈的bug
+
+**v1.0.3 release**
+
+* 添加了Web Admin监控界面
+* 改进了全量数据同步的速度
+* 重构了失败重试机制
+* 功能优化，如：针对MongoDB添加UPSERT操作、针对消息队列添加了update原始数据保留，等等
 
