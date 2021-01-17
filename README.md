@@ -2,23 +2,21 @@
 
 # 简介
 
-go-mysql-transfer是使用Go语言实现的MySQL数据库实时增量同步工具。能够实时监听MySQL二进制日志(binlog)的变动，将变更内容形成指定格式的消息，发送到接收端。在数据库和接收端之间形成一个高性能、低延迟的增量数据(Binlog)同步管道。
+go-mysql-transfer是一款MySQL数据库实时增量同步工具。
+
+能够监听MySQL二进制日志(Binlog)的变动，将变更内容形成指定格式的消息，实时发送到接收端。从而在数据库和接收端之间形成一个高性能、低延迟的增量数据同步更新管道。
 
 # 特性  
 
-1、不依赖其它组件，一键部署
-
-2、集成多种接收端，如：Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ，不需要再编写客户端，开箱即用
-
-3、内置丰富的数据解析、消息生成规则；支持Lua脚本扩展，以处理更复杂的数据逻辑
-
-4、集成Prometheus客户端，支持监控告警
-
-5、支持高可用集群部署
-
-6、数据同步失败重试
-
-7、支持全量数据初始化同步
+1、简单，不依赖其它组件，一键部署
+2、集成多种接收端，如：Redis、MongoDB、Elasticsearch、RocketMQ、Kafka、RabbitMQ、HTTP API等，无需编写客户端，开箱即用
+3、内置丰富的数据解析、消息生成规则、模板语法
+4、支持Lua脚本扩展，可处理复杂逻辑
+5、集成Prometheus客户端，支持监控告警
+6、集成Web Admin监控页面
+7、支持高可用集群部署
+8、数据同步失败重试
+9、支持全量数据初始化
 
 
 # 原理
@@ -31,13 +29,48 @@ go-mysql-transfer是使用Go语言实现的MySQL数据库实时增量同步工�
 
 # 与同类工具比较
 
-| 特色       | Canal      | mysql_stream | go-mysql-transfer                                            |
-| ---------- | ---------- | ------------ | ------------------------------------------------------------ |
-| 开发语言   | Java       | Python       | Golang                                                       |
-| HA         | 支持       | 支持         | 支持                                                         |
-| 接收端   | 编码定制 | Kafka等      | Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ<br />后续支持更多 |
-| 数据初始化 | 不支持     | 支持         | 支持                                                         |
-| 数据格式   | 编码定制 | json（固定） | 规则 (固定)<br />lua脚本 (定制)     
+<table>
+    <thead>
+        <tr>
+            <th width="20%">特色</th>
+            <th width="20%">Canal</th>
+            <th width="20%">mysql_stream</th>
+             <th width="40%">go-mysql-transfer</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>开发语言</td>
+            <td>Java</td>
+             <td>Python</td>
+             <td>Golang</td>
+        </tr>
+        <tr>
+            <td>高可用</td>
+            <td>支持</td>
+             <td>支持</td>
+             <td>支持</td>
+        </tr>
+        <tr>
+            <td>接收端</td>
+            <td>编码定制</td>
+             <td>Kafka等(MQ)</td>
+             <td>Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、HTTP API  <br>后续支持更多</td>
+        </tr>
+        <tr>
+            <td>全量数据初始化</td>
+            <td>不支持</td>
+             <td>支持</td>
+             <td>支持</td>
+        </tr>
+        <tr>
+            <td>数据格式</td>
+            <td>编码定制</td>
+             <td>Json（固定格式）</td>
+             <td>Json（规则配置)<br>模板语法<br>Lua脚本</td>
+        </tr>
+    </tbody>
+</table>
 
 # 安装包
 
