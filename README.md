@@ -9,13 +9,21 @@ go-mysql-transfer是一款MySQL数据库实时增量同步工具。
 # 特性  
 
 1、简单，不依赖其它组件，一键部署
+
 2、集成多种接收端，如：Redis、MongoDB、Elasticsearch、RocketMQ、Kafka、RabbitMQ、HTTP API等，无需编写客户端，开箱即用
+
 3、内置丰富的数据解析、消息生成规则、模板语法
+
 4、支持Lua脚本扩展，可处理复杂逻辑
+
 5、集成Prometheus客户端，支持监控告警
+
 6、集成Web Admin监控页面
+
 7、支持高可用集群部署
+
 8、数据同步失败重试
+
 9、支持全量数据初始化
 
 
@@ -114,21 +122,41 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 # 使用说明
 
-1、[go-mysql-transfer实现详解](https://www.jianshu.com/p/dce9160d298c?_blank)
+* [高可用集群](高可用集群.md)
+* [同步数据到Redis](同步数据到Redis.md)
+    * [Redis配置](redis配置.md)
+    * [基于规则同步](基于规则同步.md)
+    * [基于Lua脚本同步](基于Lua脚本同步.md)
+* [同步数据到MongoDB](同步到MongoDB.md)
+    * [MongoDB配置](MongoDB配置.md)
+    * [基于规则同步](mongodb基于规则同步.md)
+    * [基于Lua脚本同步](mongodb基于Lua脚本同步.md)
+* [同步数据到RocketMQ](同步数据到RocketMQ.md)
+    * [RocketMQ配置](RocketMQ配置.md)
+    * [基于规则同步](RocketMQ基于规则同步.md)
+    * [基于Lua脚本同步](RocketMQ基于Lua脚本同步.md)
+* [同步数据到Kafka](同步数据到Kafka.md)
+    * [Kafka配置](Kafka配置.md)
+    * [基于规则同步](Kafka基于规则同步.md)
+    * [基于Lua脚本同步](Kafka基于Lua脚本同步.md)
+* [同步数据到RabbitMQ](同步数据到RabbitMQ.md)
+    * [RabbitMQ配置](RabbitMQ配置.md)
+    * [基于规则同步](RabbitMQ基于规则同步.md)
+    * [基于Lua脚本同步](RabbitMQ基于Lua脚本同步.md)
+* [同步数据到Elasticsearch](同步数据到Elasticsearch.md)
+    * [Elasticsearch配置](Elasticsearch配置.md)
+    * [基于规则同步](Elasticsearch基于规则同步.md)
+    * [基于Lua脚本同步](Elasticsearch基于Lua脚本同步.md)
+* [全量数据导入](全量数据导入.md)
+* [Lua脚本](Lua模块.md)
+    * [基础模块](基础模块.md)
+    * [Json模块](Json模块.md)
+    * [HttpClient模块](HttpClient模块.md)
+    * [DBClient模块](DBClient模块.md)
+* [监控](监控.md)
+* [性能测试](性能测试.md)
+* [常见问题](常见问题.md)
 
-2、[同步到Redis操作说明](https://www.jianshu.com/p/c533659a1d83?_blank)
-
-3、[同步到MongoDB操作说明](https://www.jianshu.com/p/51124c9371f9?_blank)
-
-4、[同步到Elasticsearch操作说明](https://www.jianshu.com/p/5a9b6c4f318c?_blank)
-
-5、[同步到RocketMQ操作说明](https://www.jianshu.com/p/18bb121bbf63?_blank) 
-
-6、[同步到Kafka操作说明](https://www.jianshu.com/p/aec8e4c28c06?_blank)
-
-7、[同步到RabbitMQ操作说明](https://www.jianshu.com/p/ba5f1d3c75f2?_blank)
-
-8、[让go-mysql-transfer具备无尽的扩展能力（^_^）Lua脚本使用说明](https://www.jianshu.com/p/c4b0147d65a7?_blank)
 
 # 感谢
 
