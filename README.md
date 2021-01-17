@@ -122,7 +122,7 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 # 使用说明
 
-* [高可用集群](高可用集群.md)
+* <a href="https://www.kancloud.cn/wj596/go-mysql-transfer/2116627" target="_blank">高可用集群</a>
 * [同步数据到Redis](同步数据到Redis.md)
     * [Redis配置](redis配置.md)
     * [基于规则同步](基于规则同步.md)
