@@ -195,3 +195,5 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 * 重构了失败重试机制
 * 功能优化，如：针对MongoDB添加UPSERT操作、针对消息队列添加了update原始数据保留，等等
 
+**v1.0.4 release**
+* 修复了 -position 命令，binlog 名称验证问题
