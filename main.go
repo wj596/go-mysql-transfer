@@ -23,7 +23,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
+	"regexp"
 	"syscall"
 
 	"github.com/juju/errors"
@@ -167,10 +167,13 @@ func doPosition() {
 	}
 	f := others[0]
 	p := others[1]
-	if !strings.HasPrefix(f, "mysql-bin.") {
+
+	matched, _ := regexp.MatchString(".+\\.\\d+$", f)
+	if !matched {
 		println("error: The parameter File must be like: mysql-bin.000001")
 		return
 	}
+
 	pp, err := stringutil.ToUint32(p)
 	if nil != err {
 		println("error: The parameter Position must be number")
