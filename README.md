@@ -2,23 +2,29 @@
 
 # 简介
 
-go-mysql-transfer是使用Go语言实现的MySQL数据库实时增量同步工具。能够实时监听MySQL二进制日志(binlog)的变动，将变更内容形成指定格式的消息，发送到接收端。在数据库和接收端之间形成一个高性能、低延迟的增量数据(Binlog)同步管道。
+go-mysql-transfer是一款MySQL数据库实时增量同步工具。
+
+能够监听MySQL二进制日志(Binlog)的变动，将变更内容形成指定格式的消息，实时发送到接收端。从而在数据库和接收端之间形成一个高性能、低延迟的增量数据同步更新管道。
 
 # 特性  
 
-1、不依赖其它组件，一键部署
+1、简单，不依赖其它组件，一键部署
 
-2、集成多种接收端，如：Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ，不需要再编写客户端，开箱即用
+2、集成多种接收端，如：Redis、MongoDB、Elasticsearch、RocketMQ、Kafka、RabbitMQ、HTTP API等，无需编写客户端，开箱即用
 
-3、内置丰富的数据解析、消息生成规则；支持Lua脚本扩展，以处理更复杂的数据逻辑
+3、内置丰富的数据解析、消息生成规则、模板语法
 
-4、集成Prometheus客户端，支持监控告警
+4、支持Lua脚本扩展，可处理复杂逻辑
 
-5、支持高可用集群部署
+5、集成Prometheus客户端，支持监控告警
 
-6、数据同步失败重试
+6、集成Web Admin监控页面
 
-7、支持全量数据初始化同步
+7、支持高可用集群部署
+
+8、数据同步失败重试
+
+9、支持全量数据初始化
 
 
 # 原理
@@ -31,13 +37,48 @@ go-mysql-transfer是使用Go语言实现的MySQL数据库实时增量同步工�
 
 # 与同类工具比较
 
-| 特色       | Canal      | mysql_stream | go-mysql-transfer                                            |
-| ---------- | ---------- | ------------ | ------------------------------------------------------------ |
-| 开发语言   | Java       | Python       | Golang                                                       |
-| HA         | 支持       | 支持         | 支持                                                         |
-| 接收端   | 编码定制 | Kafka等      | Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ<br />后续支持更多 |
-| 数据初始化 | 不支持     | 支持         | 支持                                                         |
-| 数据格式   | 编码定制 | json（固定） | 规则 (固定)<br />lua脚本 (定制)     
+<table>
+    <thead>
+        <tr>
+            <th width="20%">特色</th>
+            <th width="20%">Canal</th>
+            <th width="20%">mysql_stream</th>
+             <th width="40%">go-mysql-transfer</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>开发语言</td>
+            <td>Java</td>
+             <td>Python</td>
+             <td>Golang</td>
+        </tr>
+        <tr>
+            <td>高可用</td>
+            <td>支持</td>
+             <td>支持</td>
+             <td>支持</td>
+        </tr>
+        <tr>
+            <td>接收端</td>
+            <td>编码定制</td>
+             <td>Kafka等(MQ)</td>
+             <td>Redis、MongoDB、Elasticsearch、RabbitMQ、Kafka、RocketMQ、HTTP API  <br>后续支持更多</td>
+        </tr>
+        <tr>
+            <td>全量数据初始化</td>
+            <td>不支持</td>
+             <td>支持</td>
+             <td>支持</td>
+        </tr>
+        <tr>
+            <td>数据格式</td>
+            <td>编码定制</td>
+             <td>Json（固定格式）</td>
+             <td>Json（规则配置)<br>模板语法<br>Lua脚本</td>
+        </tr>
+    </tbody>
+</table>
 
 # 安装包
 
@@ -51,9 +92,9 @@ go-mysql-transfer是使用Go语言实现的MySQL数据库实时增量同步工�
 
 2、设置' GO111MODULE=on '
 
-3、拉取源码 ‘ go get -d github.com/wj596/go-mysql-transfer’
+3、拉取源码 ' git clone https://github.com/wj596/go-mysql-transfer.git '
 
-3、进入目录，执行 ‘ go build ’ 编译
+4、进入目录，执行 ' go build '编译
 
 # 全量数据初始化
 
@@ -81,21 +122,41 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 # 使用说明
 
-1、[go-mysql-transfer实现详解](https://www.jianshu.com/p/dce9160d298c?_blank)
+* [高可用集群](https://www.kancloud.cn/wj596/go-mysql-transfer/2116627)
+* [同步数据到Redis](https://www.kancloud.cn/wj596/go-mysql-transfer/2064427)
+    * [Redis配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2111996)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2111997)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2111998)
+* [同步数据到MongoDB](https://www.kancloud.cn/wj596/go-mysql-transfer/2064428)
+    * [MongoDB配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2111999)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112000)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112001)
+* [同步数据到RocketMQ](https://www.kancloud.cn/wj596/go-mysql-transfer/2064429)
+    * [RocketMQ配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2112002)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112003)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112004)
+* [同步数据到Kafka](https://www.kancloud.cn/wj596/go-mysql-transfer/2064430)
+    * [Kafka配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2112005)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112006)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112007)
+* [同步数据到RabbitMQ](https://www.kancloud.cn/wj596/go-mysql-transfer/2064431)
+    * [RabbitMQ配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2112008)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112009)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112010)
+* [同步数据到Elasticsearch](https://www.kancloud.cn/wj596/go-mysql-transfer/2064432)
+    * [Elasticsearch配置](https://www.kancloud.cn/wj596/go-mysql-transfer/2112011)
+    * [基于规则同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112012)
+    * [基于Lua脚本同步](https://www.kancloud.cn/wj596/go-mysql-transfer/2112013)
+* [全量数据导入](https://www.kancloud.cn/wj596/go-mysql-transfer/2116628)
+* [Lua脚本](https://www.kancloud.cn/wj596/go-mysql-transfer/2064433)
+    * [基础模块](https://www.kancloud.cn/wj596/go-mysql-transfer/2112014)
+    * [Json模块](https://www.kancloud.cn/wj596/go-mysql-transfer/2112015)
+    * [HttpClient模块](https://www.kancloud.cn/wj596/go-mysql-transfer/2112016)
+    * [DBClient模块](https://www.kancloud.cn/wj596/go-mysql-transfer/2112017)
+* [监控](https://www.kancloud.cn/wj596/go-mysql-transfer/2064434)
+* [性能测试](https://www.kancloud.cn/wj596/go-mysql-transfer/2116629)
+* [常见问题](https://www.kancloud.cn/wj596/go-mysql-transfer/2064435)
 
-2、[同步到Redis操作说明](https://www.jianshu.com/p/c533659a1d83?_blank)
-
-3、[同步到MongoDB操作说明](https://www.jianshu.com/p/51124c9371f9?_blank)
-
-4、[同步到Elasticsearch操作说明](https://www.jianshu.com/p/5a9b6c4f318c?_blank)
-
-5、[同步到RocketMQ操作说明](https://www.jianshu.com/p/18bb121bbf63?_blank) 
-
-6、[同步到Kafka操作说明](https://www.jianshu.com/p/aec8e4c28c06?_blank)
-
-7、[同步到RabbitMQ操作说明](https://www.jianshu.com/p/ba5f1d3c75f2?_blank)
-
-8、[让go-mysql-transfer具备无尽的扩展能力（^_^）Lua脚本使用说明](https://www.jianshu.com/p/c4b0147d65a7?_blank)
 
 # 感谢
 
@@ -126,4 +187,11 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 * 修复enum类型字段出现的乱码问题
 * redis接收端增加*Sorted*  Set数据类型支持
 * 修复了近来反馈的bug
+
+**v1.0.3 release**
+
+* 添加了Web Admin监控界面
+* 改进了全量数据同步的速度
+* 重构了失败重试机制
+* 功能优化，如：针对MongoDB添加UPSERT操作、针对消息队列添加了update原始数据保留，等等
 
