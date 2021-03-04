@@ -173,9 +173,9 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 # 更新日志
 
-**v1.0.0 bate**
+**v1.0.0 beta**
 
-* 9.17  初始化提交bate版本
+* 9.17  初始化提交beta版本
 
 **v1.0.1 release**
 
