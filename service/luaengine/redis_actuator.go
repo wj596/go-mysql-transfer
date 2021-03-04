@@ -54,12 +54,22 @@ var _redisModuleApi = map[string]lua.LGFunction{
 
 	"ZADD": redisZAdd,
 	"ZREM": redisZRem,
+
+	"EXPIRE": redisExpire,
 }
 
 func rawOldRow(L *lua.LState) int {
 	row := L.GetGlobal(_globalOLDROW)
 	L.Push(row)
 	return 1
+}
+
+func redisExpire(L *lua.LState) int {
+	key := L.CheckString(1)
+	val := L.CheckAny(2)
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("expire_0_"+key), val)
+	return 0
 }
 
 func redisSet(L *lua.LState) int {
