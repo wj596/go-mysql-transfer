@@ -237,9 +237,7 @@ func DoRedisOps(input map[string]interface{}, previous map[string]interface{}, a
 	var lsLen = len(ls)
 	if lsLen > 1 && ls[0].Action == "expire" {
 		// "expire" it will not work when the key not exist, swap it
-		var tmp = ls[0]
-		ls[0] = ls[lsLen-1]
-		ls[lsLen-1] = tmp
+		ls[0], ls[lsLen-1] = ls[lsLen-1], ls[0]
 	}
 
 	return ls, nil
