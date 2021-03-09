@@ -19,7 +19,7 @@ package luaengine
 
 import (
 	"github.com/siddontang/go-mysql/canal"
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 
 	"go-mysql-transfer/global"
 	"go-mysql-transfer/model"
@@ -233,6 +233,14 @@ func DoRedisOps(input map[string]interface{}, previous map[string]interface{}, a
 
 		ls = append(ls, resp)
 	})
+
+	var lsLen = len(ls)
+	if lsLen > 1 && ls[0].Action == "expire" {
+		// "expire" it will not work when the key not exist, swap it
+		var tmp = ls[0]
+		ls[0] = ls[lsLen-1]
+		ls[lsLen-1] = tmp
+	}
 
 	return ls, nil
 }
