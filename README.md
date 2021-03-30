@@ -120,6 +120,11 @@ server_id=1 # 配置 MySQL replaction 需要定义，不要和 go-mysql-transfer
 
 3、Linux执行 nohup go-mysql-transfer &
 
+
+# gitee
+
+如果您的github访问不稳定，可以在码云(gitee)上star项目：[go-mysql-transfer 码云(gitee)](https://gitee.com/wj596/go-mysql-transfer) 
+
 # 使用说明
 
 * [高可用集群](https://www.kancloud.cn/wj596/go-mysql-transfer/2116627)
