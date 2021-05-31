@@ -201,9 +201,9 @@ func (s *KafkaEndpoint) buildMessage(row *model.RowRequest, rule *global.Rule) (
 	resp.Action = row.Action
 	resp.Timestamp = row.Timestamp
 	if rule.ValueEncoder == global.ValEncoderJson {
-		resp.Date = kvm
+		resp.Data = kvm
 	} else {
-		resp.Date = encodeValue(rule, kvm)
+		resp.Data = encodeValue(rule, kvm)
 	}
 
 	if rule.ReserveRawData && canal.UpdateAction == row.Action {

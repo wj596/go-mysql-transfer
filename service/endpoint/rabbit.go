@@ -191,9 +191,9 @@ func (s *RabbitEndpoint) doRuleConsume(req *model.RowRequest, rule *global.Rule)
 	resp.Action = req.Action
 	resp.Timestamp = req.Timestamp
 	if rule.ValueEncoder == global.ValEncoderJson {
-		resp.Date = kvm
+		resp.Data = kvm
 	} else {
-		resp.Date = encodeValue(rule, kvm)
+		resp.Data = encodeValue(rule, kvm)
 	}
 
 	if rule.ReserveRawData && canal.UpdateAction == req.Action {
