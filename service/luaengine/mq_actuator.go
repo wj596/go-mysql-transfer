@@ -18,6 +18,7 @@
 package luaengine
 
 import (
+	"github.com/siddontang/go-mysql/canal"
 	"github.com/yuin/gopher-lua"
 
 	"go-mysql-transfer/global"
@@ -33,6 +34,7 @@ func mqModule(L *lua.LState) int {
 
 var _mqModuleApi = map[string]lua.LGFunction{
 	"rawRow":    rawRow,
+	"rawOldRow": rawOldRow,
 	"rawAction": rawAction,
 
 	"SEND": msgSend,
@@ -47,7 +49,7 @@ func msgSend(L *lua.LState) int {
 	return 0
 }
 
-func DoMQOps(input map[string]interface{}, action string, rule *global.Rule) ([]*model.MQRespond, error) {
+func DoMQOps(input map[string]interface{}, previous map[string]interface{}, action string, rule *global.Rule) ([]*model.MQRespond, error) {
 	L := _pool.Get()
 	defer _pool.Put(L)
 
@@ -57,6 +59,12 @@ func DoMQOps(input map[string]interface{}, action string, rule *global.Rule) ([]
 	L.SetGlobal(_globalRET, ret)
 	L.SetGlobal(_globalROW, row)
 	L.SetGlobal(_globalACT, lua.LString(action))
+
+	if action == canal.UpdateAction {
+		oldRow := L.NewTable()
+		paddingTable(L, oldRow, previous)
+		L.SetGlobal(_globalOLDROW, oldRow)
+	}
 
 	funcFromProto := L.NewFunctionFromProto(rule.LuaProto)
 	L.Push(funcFromProto)
