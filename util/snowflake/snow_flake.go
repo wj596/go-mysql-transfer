@@ -2,8 +2,11 @@ package snowflake
 
 import (
 	"github.com/sony/sonyflake"
-	"go-mysql-transfer/util/logutil"
+
+	"go-mysql-transfer/util/logs"
 )
+
+// 雪花ID工具
 
 var _sf *sonyflake.Sonyflake
 
@@ -22,7 +25,7 @@ func InitSnowflake(machineId uint16) {
 func NextId() (uint64, error) {
 	id, err := _sf.NextID()
 	if err != nil {
-		logutil.Errorf("snowflake NextId ：%s", err.Error())
+		logs.Errorf("snowflake NextId ：%s", err.Error())
 	}
 	return id, nil
 }

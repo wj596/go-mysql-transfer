@@ -13,6 +13,7 @@ message PingRequest {
   string token = 1;
   string context = 2;
 }
+
 // 定义 Pong响应消息结构
 message PongResponse {
   string context = 1;

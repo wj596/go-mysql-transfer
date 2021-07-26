@@ -265,6 +265,5 @@ func TestResources(t *testing.T) {
 		fmt.Println(err)
 	}
 
-	fmt.Println("sssssssssssssss")
 	fmt.Println("RespondText:",entity.DataAsString())
 }
