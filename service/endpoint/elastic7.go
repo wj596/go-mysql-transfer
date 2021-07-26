@@ -121,16 +121,21 @@ func (s *Elastic7Endpoint) updateIndexMapping(rule *global.Rule) error {
 	if err != nil {
 		return err
 	}
-	retIndex := ret[rule.ElsIndex].(map[string]interface{})
-	retMaps := retIndex["mappings"].(map[string]interface{})
-	if retMaps == nil {
-		return nil
-	}
 
-	retPros := retMaps["properties"].(map[string]interface{})
-	if retPros == nil {
+	if ret[rule.ElsIndex]==nil{
 		return nil
 	}
+	retIndex := ret[rule.ElsIndex].(map[string]interface{})
+
+	if retIndex["mappings"] == nil {
+		return nil
+	}
+	retMaps := retIndex["mappings"].(map[string]interface{})
+
+	if retMaps["properties"] == nil {
+		return nil
+	}
+	retPros := retMaps["properties"].(map[string]interface{})
 
 	var currents map[string]interface{}
 	if rule.LuaEnable() {

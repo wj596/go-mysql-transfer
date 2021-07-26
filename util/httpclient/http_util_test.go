@@ -254,3 +254,17 @@ func TestHttpClientPutJson(t *testing.T) {
 
 	fmt.Println(string(data))
 }
+
+func TestResources(t *testing.T) {
+	entity, err := DefaultClient.
+		AddHeader("Authorization","adc8620e5164462e854f6f2e4e33ee53").
+		GET("http://localhost:8090/portal/users/admin/resources").
+		DoForEntity()
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println("sssssssssssssss")
+	fmt.Println("RespondText:",entity.DataAsString())
+}
