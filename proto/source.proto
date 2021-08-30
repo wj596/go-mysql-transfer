@@ -1,0 +1,18 @@
+syntax = "proto3";
+// 定义包名
+option go_package ="/model/po";
+
+// 定义'数据源信息'结构
+message SourceInfo {
+  // 类型 字段 = 标识号
+  uint64 id =1;
+  string name  =2; //名称
+  string host  =3; //主机
+  uint32 port  =4; //端口
+  string username  =5; //用户名
+  string password =6; //密码
+  string charset  =7; //字符串编码
+  uint32 slaveID =8; //SlaveID
+  string flavor   =9; // mysql or mariadb,默认mysql
+  uint32 status =10; //状态 0正常 1停用
+}

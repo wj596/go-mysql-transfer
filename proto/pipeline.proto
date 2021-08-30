@@ -1,0 +1,14 @@
+syntax = "proto3";
+// 定义包名
+option go_package ="/model/po";
+
+// 定义'管道信息'结构
+message PipelineInfo {
+  uint64 id =1;
+  string name  =2;
+  uint64 sourceId =3;
+  uint64 endpointId =4;
+  string  createTime = 5;
+  string  updateTime = 6;
+  uint32 status =7; //状态 0正常 1停用
+}
