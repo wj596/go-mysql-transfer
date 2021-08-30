@@ -257,7 +257,7 @@ func TestHttpClientPutJson(t *testing.T) {
 
 func TestResources(t *testing.T) {
 	entity, err := DefaultClient.
-		AddHeader("Authorization","adc8620e5164462e854f6f2e4e33ee53").
+		AddHeader("Authorization", "adc8620e5164462e854f6f2e4e33ee53").
 		GET("http://localhost:8090/portal/users/admin/resources").
 		DoForEntity()
 
@@ -265,5 +265,6 @@ func TestResources(t *testing.T) {
 		fmt.Println(err)
 	}
 
-	fmt.Println("RespondText:",entity.DataAsString())
+	fmt.Println("sssssssssssssss")
+	fmt.Println("RespondText:", entity.DataAsString())
 }

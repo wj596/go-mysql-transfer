@@ -1,69 +1,63 @@
-/*
- * Copyright 2020-2021 the original author(https://github.com/wj596)
- *
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- * </p>
- */
 package service
 
 import (
-	"go-mysql-transfer/global"
-	"go-mysql-transfer/service/election"
+	"go-mysql-transfer/dao"
+	"go-mysql-transfer/util/snowflake"
 )
 
 var (
-	_transferService *TransferService
-	_electionService election.Service
-	_clusterService  *ClusterService
+	_authService         *AuthService
+	_sourceInfoService   *SourceInfoService
+	_endpointInfoService *EndpointInfoService
+	_transformRuleService *TransformRuleService
+	_pipelineInfoService *PipelineInfoService
 )
 
 func Initialize() error {
-	transferService := &TransferService{
-		loopStopSignal: make(chan struct{}, 1),
-	}
-	err := transferService.initialize()
-	if err != nil {
-		return err
-	}
-	_transferService = transferService
+	snowflake.Initialize(1)
 
-	if global.Cfg().IsCluster() {
-		_clusterService = &ClusterService{
-			electionSignal: make(chan bool, 1),
-		}
-		_electionService = election.NewElection(_clusterService.electionSignal)
+	_authService = &AuthService{
+		sessionMap: make(map[string]*Session),
+	}
+
+	_sourceInfoService = &SourceInfoService{
+		dao: dao.GetSourceInfoDao(),
+	}
+
+	_endpointInfoService = &EndpointInfoService{
+		dao: dao.GetEndpointInfoDao(),
+	}
+
+	_transformRuleService = &TransformRuleService{
+		dao:     dao.GetTransformRuleDao(),
+	}
+
+	_pipelineInfoService = &PipelineInfoService{
+		dao:     dao.GetPipelineInfoDao(),
+		ruleDao: dao.GetTransformRuleDao(),
+		sourceDao:   dao.GetSourceInfoDao(),
+		endpointDao: dao.GetEndpointInfoDao(),
 	}
 
 	return nil
 }
 
-func StartUp() {
-	if global.Cfg().IsCluster() {
-		_clusterService.boot()
-	} else {
-		_transferService.StartUp()
-	}
+func GetAuthService() *AuthService {
+	return _authService
 }
 
-func Close() {
-	_transferService.Close()
+func GetSourceInfoService() *SourceInfoService {
+	return _sourceInfoService
 }
 
-func TransferServiceIns() *TransferService {
-	return _transferService
+func GetEndpointInfoService() *EndpointInfoService {
+	return _endpointInfoService
 }
 
-func ClusterServiceIns() *ClusterService {
-	return _clusterService
+func GetTransformRuleService() *TransformRuleService {
+	return _transformRuleService
+}
+
+func GetPipelineInfoService() *PipelineInfoService {
+	return _pipelineInfoService
 }

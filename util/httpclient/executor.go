@@ -74,7 +74,7 @@ func (s *executor) execute(request *http.Request) (*http.Response, error) {
 	s.overrideCriteria()
 
 	for k, v := range s.criteria.headers {
-		request.Header.Add(k, stringutil.ToString(v))
+		request.Header.Add(k, stringutils.ToString(v))
 	}
 
 	startTime := time.Now().UnixNano()
@@ -188,10 +188,10 @@ func (r *GetOrDeleteExecutor) SetExpectStatus(expect int) *GetOrDeleteExecutor {
 func (r *GetOrDeleteExecutor) Do() (*http.Response, error) {
 	values := make(url.Values)
 	for k, v := range r.parameters {
-		values.Set(k, stringutil.ToString(v))
+		values.Set(k, stringutils.ToString(v))
 	}
 
-	url := stringutil.UrlValuesToQueryString(r.addr, values)
+	url := stringutils.UrlValuesToQueryString(r.addr, values)
 	req, err := http.NewRequest(r.method, url, nil)
 	if nil != err {
 		return nil, err
@@ -321,7 +321,7 @@ func (r *PostOrPutExecutor) doFormRequest() (*http.Response, error) {
 			values = nil
 			break
 		}
-		values.Set(k, stringutil.ToString(v))
+		values.Set(k, stringutils.ToString(v))
 	}
 
 	if !isMultipart {
@@ -366,7 +366,7 @@ func (r *PostOrPutExecutor) doFormRequest() (*http.Response, error) {
 				break
 			}
 		default:
-			if err := bodyWriter.WriteField(k, stringutil.ToString(v)); err != nil {
+			if err := bodyWriter.WriteField(k, stringutils.ToString(v)); err != nil {
 				return nil, err
 			}
 		}

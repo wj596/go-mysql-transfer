@@ -15,9 +15,10 @@
  * limitations under the License.
  * </p>
  */
+
 package logagent
 
-import "go-mysql-transfer/util/logs"
+import "go-mysql-transfer/util/log"
 
 type ElsLoggerAgent struct {
 }
@@ -27,5 +28,5 @@ func NewElsLoggerAgent() *ElsLoggerAgent {
 }
 
 func (s *ElsLoggerAgent) Printf(format string, v ...interface{}) {
-	logs.Infof(format, v)
+	log.Infof(format, v)
 }

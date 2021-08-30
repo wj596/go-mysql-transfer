@@ -15,19 +15,13 @@
  * limitations under the License.
  * </p>
  */
+
 package metrics
 
 import (
-	"fmt"
-	"net/http"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/siddontang/go-mysql/canal"
 	"go.uber.org/atomic"
-
-	"go-mysql-transfer/global"
 )
 
 const (
@@ -92,136 +86,5 @@ var (
 )
 
 func Initialize() error {
-	if global.Cfg().EnableExporter {
-		go func() {
-			http.Handle("/", promhttp.Handler())
-			http.ListenAndServe(fmt.Sprintf(":%d", global.Cfg().ExporterPort), nil)
-		}()
-	}
-	if global.Cfg().EnableWebAdmin {
-		insertRecord = make(map[string]*atomic.Uint64)
-		updateRecord = make(map[string]*atomic.Uint64)
-		deleteRecord = make(map[string]*atomic.Uint64)
-		for _, k := range global.RuleKeyList() {
-			insertRecord[k] = &atomic.Uint64{}
-			updateRecord[k] = &atomic.Uint64{}
-			deleteRecord[k] = &atomic.Uint64{}
-		}
-	}
 	return nil
-}
-
-func SetLeaderState(state int) {
-	if global.Cfg().EnableExporter {
-		leaderStateGauge.Set(float64(state))
-	}
-	if global.Cfg().EnableWebAdmin {
-		leaderState.Store(LeaderState == state)
-	}
-}
-
-func SetDestState(state int) {
-	if global.Cfg().EnableExporter {
-		destStateGauge.Set(float64(state))
-	}
-	if global.Cfg().EnableWebAdmin {
-		destState.Store(DestStateOK == state)
-	}
-}
-
-func DestState() bool {
-	return destState.Load()
-}
-
-func SetTransferDelay(d uint32) {
-	if global.Cfg().EnableExporter {
-		delayGauge.Set(float64(d))
-	}
-	if global.Cfg().EnableWebAdmin {
-		delay.Store(d)
-	}
-}
-
-func UpdateActionNum(action, lab string) {
-	if global.Cfg().EnableExporter {
-		switch action {
-		case canal.InsertAction:
-			insertCounter.WithLabelValues(lab).Inc()
-		case canal.UpdateAction:
-			updateCounter.WithLabelValues(lab).Inc()
-		case canal.DeleteAction:
-			deleteCounter.WithLabelValues(lab).Inc()
-		}
-	}
-	if global.Cfg().EnableWebAdmin {
-		switch action {
-		case canal.InsertAction:
-			if v, ok := insertRecord[lab]; ok {
-				v.Inc()
-			}
-		case canal.UpdateAction:
-			if v, ok := updateRecord[lab]; ok {
-				v.Inc()
-			}
-		case canal.DeleteAction:
-			if v, ok := deleteRecord[lab]; ok {
-				v.Inc()
-			}
-		}
-	}
-}
-
-func InsertAmount() uint64 {
-	var amount uint64
-	for _, v := range insertRecord {
-		amount += v.Load()
-	}
-	return amount
-}
-
-func UpdateAmount() uint64 {
-	var amount uint64
-	for _, v := range updateRecord {
-		amount += v.Load()
-	}
-	return amount
-}
-
-func DeleteAmount() uint64 {
-	var amount uint64
-	for _, v := range deleteRecord {
-		amount += v.Load()
-	}
-	return amount
-}
-
-func LabInsertAmount(lab string) uint64 {
-	var nn uint64
-	n, ok := insertRecord[lab]
-	if ok {
-		nn = n.Load()
-	}
-	return nn
-}
-
-func LabUpdateRecord(lab string) uint64 {
-	var nn uint64
-	n, ok := updateRecord[lab]
-	if ok {
-		nn = n.Load()
-	}
-	return nn
-}
-
-func LabDeleteRecord(lab string) uint64 {
-	var nn uint64
-	n, ok := deleteRecord[lab]
-	if ok {
-		nn = n.Load()
-	}
-	return nn
-}
-
-func LeaderFlag() bool {
-	return leaderState.Load()
 }

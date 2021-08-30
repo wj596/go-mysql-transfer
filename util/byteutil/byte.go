@@ -15,6 +15,7 @@
  * limitations under the License.
  * </p>
  */
+
 package byteutil
 
 import (
@@ -37,12 +38,6 @@ func Uint64ToBytes(u uint64) []byte {
 	return buf
 }
 
-func Int64ToBytes(u int64) []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, uint64(u))
-	return buf
-}
-
 func BytesToUint64(b []byte) uint64 {
 	if b == nil {
 		return 0
@@ -50,11 +45,17 @@ func BytesToUint64(b []byte) uint64 {
 	return binary.BigEndian.Uint64(b)
 }
 
-func BytesToInt64(b []byte) int64 {
+func BytesToUint32(b []byte) uint32 {
 	if b == nil {
 		return 0
 	}
-	return int64(binary.BigEndian.Uint64(b))
+	return binary.BigEndian.Uint32(b)
+}
+
+func Uint32ToBytes(u uint32) []byte {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, u)
+	return buf
 }
 
 func Uint8ToBytes(u uint8) ([]byte, error) {
@@ -76,20 +77,7 @@ func BytesToUint8(b []byte) (uint8, error) {
 	return tmp, nil
 }
 
-func BytesToUint32(b []byte) uint32 {
-	if b == nil {
-		return 0
-	}
-	return binary.BigEndian.Uint32(b)
-}
-
-func Uint32ToBytes(u uint32) []byte {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, u)
-	return buf
-}
-
-func JsonBytes(v interface{}) []byte {
+func ToJsonBytes(v interface{}) []byte {
 	bytes, err := json.Marshal(v)
 	if nil != err {
 		return nil

@@ -15,9 +15,10 @@
  * limitations under the License.
  * </p>
  */
+
 package logagent
 
-import "go-mysql-transfer/util/logs"
+import "go-mysql-transfer/util/log"
 
 type ZkLoggerAgent struct {
 }
@@ -27,5 +28,5 @@ func NewZkLoggerAgent() *ZkLoggerAgent {
 }
 
 func (s *ZkLoggerAgent) Printf(template string, args ...interface{}) {
-	logs.Infof(template, args...)
+	log.Infof(template, args...)
 }

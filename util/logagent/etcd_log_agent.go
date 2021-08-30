@@ -15,12 +15,14 @@
  * limitations under the License.
  * </p>
  */
+
 package logagent
 
 import (
-	"go-mysql-transfer/util/logs"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"go-mysql-transfer/util/log"
 )
 
 func EtcdZapLoggerConfig() zap.Config {
@@ -63,58 +65,58 @@ func NewEtcdLoggerAgent() *EtcdLoggerAgent {
 // Info logs to INFO log. Arguments are handled in the manner of fmt.Print.
 func (s *EtcdLoggerAgent) Info(args ...interface{}) {
 	for _, arg := range args {
-		logs.Infof("%v", arg)
+		log.Infof("%v", arg)
 	}
 }
 
 // Infoln logs to INFO log. Arguments are handled in the manner of fmt.Println.
 func (s *EtcdLoggerAgent) Infoln(args ...interface{}) {
 	for _, arg := range args {
-		logs.Infof("%v", arg)
+		log.Infof("%v", arg)
 	}
 }
 
 // Infof logs to INFO log. Arguments are handled in the manner of fmt.Printf.
 func (s *EtcdLoggerAgent) Infof(format string, args ...interface{}) {
-	logs.Infof(format, args...)
+	log.Infof(format, args...)
 }
 
 // Warning logs to WARNING log. Arguments are handled in the manner of fmt.Print.
 func (s *EtcdLoggerAgent) Warning(args ...interface{}) {
 	for _, arg := range args {
-		logs.Warnf("%v", arg)
+		log.Warnf("%v", arg)
 	}
 }
 
 // Warningln logs to WARNING log. Arguments are handled in the manner of fmt.Println.
 func (s *EtcdLoggerAgent) Warningln(args ...interface{}) {
 	for _, arg := range args {
-		logs.Warnf("%v", arg)
+		log.Warnf("%v", arg)
 	}
 }
 
 // Warningf logs to WARNING log. Arguments are handled in the manner of fmt.Printf.
 func (s *EtcdLoggerAgent) Warningf(format string, args ...interface{}) {
-	logs.Warnf(format, args...)
+	log.Warnf(format, args...)
 }
 
 // Error logs to ERROR log. Arguments are handled in the manner of fmt.Print.
 func (s *EtcdLoggerAgent) Error(args ...interface{}) {
 	for _, arg := range args {
-		logs.Errorf("%v", arg)
+		log.Errorf("%v", arg)
 	}
 }
 
 // Errorln logs to ERROR log. Arguments are handled in the manner of fmt.Println.
 func (s *EtcdLoggerAgent) Errorln(args ...interface{}) {
 	for _, arg := range args {
-		logs.Errorf("%v", arg)
+		log.Errorf("%v", arg)
 	}
 }
 
 // Errorf logs to ERROR log. Arguments are handled in the manner of fmt.Printf.
 func (s *EtcdLoggerAgent) Errorf(format string, args ...interface{}) {
-	logs.Errorf(format, args)
+	log.Errorf(format, args)
 }
 
 // Fatal logs to ERROR log. Arguments are handled in the manner of fmt.Print.
@@ -122,7 +124,7 @@ func (s *EtcdLoggerAgent) Errorf(format string, args ...interface{}) {
 // Implementations may also call os.Exit() with a non-zero exit code.
 func (s *EtcdLoggerAgent) Fatal(args ...interface{}) {
 	for _, arg := range args {
-		logs.Errorf("%v", arg)
+		log.Errorf("%v", arg)
 	}
 }
 
@@ -131,7 +133,7 @@ func (s *EtcdLoggerAgent) Fatal(args ...interface{}) {
 // Implementations may also call os.Exit() with a non-zero exit code.
 func (s *EtcdLoggerAgent) Fatalln(args ...interface{}) {
 	for _, arg := range args {
-		logs.Errorf("%v", arg)
+		log.Errorf("%v", arg)
 	}
 }
 
@@ -139,7 +141,7 @@ func (s *EtcdLoggerAgent) Fatalln(args ...interface{}) {
 // gRPC ensures that all Fatal logs will exit with os.Exit(1).
 // Implementations may also call os.Exit() with a non-zero exit code.
 func (s *EtcdLoggerAgent) Fatalf(format string, args ...interface{}) {
-	logs.Errorf(format, args)
+	log.Errorf(format, args)
 }
 
 // V reports whether verbosity level l is at least the requested verbose level.
