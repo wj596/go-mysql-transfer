@@ -7,7 +7,6 @@ import (
 	"github.com/juju/errors"
 
 	"go-mysql-transfer/model/po"
-	"go-mysql-transfer/model/vo"
 	"go-mysql-transfer/service"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
@@ -96,26 +95,17 @@ func (s *EndpointInfoAction) GetBy(c *gin.Context) {
 }
 
 func (s *EndpointInfoAction) Select(c *gin.Context) {
-	term := vo.NewEndpointInfoParams()
-	term.SetName(c.Query("name"))
-	term.SetHost(c.Query("host"))
-	term.Page().SetCurrentParam(c.Query("page"))
-	term.Page().SetLimitParam(c.Query("pageSize"))
-
-	var data interface{}
-	var err error
-	if term.Page().Necessary() {
-		data, err = s.service.SelectPage(term)
-	} else {
-		data, err = s.service.SelectList(term)
-	}
+	name := c.Query("name")
+	host := c.Query("host")
+	list, err := s.service.SelectList(name, host)
 
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
 		Err500(c, err.Error())
 		return
 	}
-	RespData(c, data)
+
+	RespData(c, list)
 }
 
 func (s *EndpointInfoAction) TestLink(c *gin.Context) {

@@ -2,9 +2,9 @@ package service
 
 import (
 	"fmt"
-	"go-mysql-transfer/datasource"
 
 	"go-mysql-transfer/dao"
+	"go-mysql-transfer/datasource"
 	"go-mysql-transfer/model/po"
 	"go-mysql-transfer/model/vo"
 	"go-mysql-transfer/util/snowflake"
@@ -36,12 +36,8 @@ func (s *SourceInfoService) GetByName(name string) (*po.SourceInfo, error) {
 	return s.dao.GetByName(name)
 }
 
-func (s *SourceInfoService) SelectList(term *vo.SourceInfoParams) ([]*po.SourceInfo, error) {
-	return s.dao.SelectList(term)
-}
-
-func (s *SourceInfoService) SelectPage(term *vo.SourceInfoParams) (*vo.SourceInfoResp, error) {
-	return s.dao.SelectPage(term)
+func (s *SourceInfoService) SelectList(name string, host string) ([]*po.SourceInfo, error) {
+	return s.dao.SelectList(name, host)
 }
 
 func (s *SourceInfoService) SelectSchemaList(id uint64) ([]string, error) {

@@ -2,6 +2,7 @@ package vo
 
 import (
 	"fmt"
+
 	"go-mysql-transfer/config"
 	"go-mysql-transfer/model/po"
 	"go-mysql-transfer/util/stringutils"
@@ -97,8 +98,8 @@ func (s *TransformRuleVO) ToPO() *po.TransformRule {
 		ExcludeColumnList:   s.ExcludeColumnList,                            // 排除掉的列
 		DataEncoder:         stringutils.ToInt32Safe(s.DataEncoder),         //数据编码类型，0: json、 1:表达式
 		DataExpression:      s.DataExpression,                               //数据expression
-		DateFormatter:       s.DateFormatter,       //date类型格式化
-		DatetimeFormatter:   s.DatetimeFormatter,   //datetime、timestamp类型格式化
+		DateFormatter:       s.DateFormatter,                                //date类型格式化
+		DatetimeFormatter:   s.DatetimeFormatter,                            //datetime、timestamp类型格式化
 		OrderColumn:         s.OrderColumn,
 	}
 
@@ -150,18 +151,18 @@ func (s *TransformRuleVO) ToPO() *po.TransformRule {
 			}
 			p.EsIndexMappings = esIndexMappings
 		}
+	}
 
-		if s.EndpointType == config.EndpointTypeRocketMQ ||
-			s.EndpointType == config.EndpointTypeKafka ||
-			s.EndpointType == config.EndpointTypeRabbitMQ {
-			p.MqTopic = s.MqTopic
-			p.MqReserveRawData = s.MqReserveRawData
-		}
+	if s.EndpointType == config.EndpointTypeRocketMQ ||
+		s.EndpointType == config.EndpointTypeKafka ||
+		s.EndpointType == config.EndpointTypeRabbitMQ {
+		p.MqTopic = s.MqTopic
+		p.MqReserveRawData = s.MqReserveRawData
+	}
 
-		if s.EndpointType == config.EndpointTypeHttp {
-			p.HttpParameterName = s.HttpParameterName
-			p.HttpReserveRawData = s.HttpReserveRawData
-		}
+	if s.EndpointType == config.EndpointTypeHttp {
+		p.HttpParameterName = s.HttpParameterName
+		p.HttpReserveRawData = s.HttpReserveRawData
 	}
 
 	return p
@@ -264,6 +265,7 @@ func (s *TransformRuleVO) FromPO(p *po.TransformRule) {
 		if p.EndpointType == config.EndpointTypeRocketMQ ||
 			p.EndpointType == config.EndpointTypeKafka ||
 			p.EndpointType == config.EndpointTypeRabbitMQ {
+
 			s.MqTopic = p.MqTopic
 			s.MqReserveRawData = p.MqReserveRawData
 		}

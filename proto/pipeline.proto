@@ -10,5 +10,5 @@ message PipelineInfo {
   uint64 endpointId =4;
   string  createTime = 5;
   string  updateTime = 6;
-  uint32 status =7; //状态 0正常 1停用
+  uint32 status =7; //状态 0正常 1运行 9停用
 }

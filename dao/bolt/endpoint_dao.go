@@ -8,7 +8,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go-mysql-transfer/model/po"
-	"go-mysql-transfer/model/vo"
 	"go-mysql-transfer/util/byteutil"
 	"go-mysql-transfer/util/log"
 )
@@ -78,7 +77,7 @@ func (s *EndpointInfoDaoImpl) GetByName(name string) (*po.EndpointInfo, error) {
 	return &entity, err
 }
 
-func (s *EndpointInfoDaoImpl) SelectList(term *vo.EndpointInfoParams) ([]*po.EndpointInfo, error) {
+func (s *EndpointInfoDaoImpl) SelectList(name string, host string) ([]*po.EndpointInfo, error) {
 	list := make([]*po.EndpointInfo, 0)
 	err := _conn.View(func(tx *bbolt.Tx) error {
 		bt := tx.Bucket(_endpointBucket)
@@ -86,10 +85,10 @@ func (s *EndpointInfoDaoImpl) SelectList(term *vo.EndpointInfoParams) ([]*po.End
 		for k, v := cursor.Last(); k != nil; k, v = cursor.Prev() {
 			var entity po.EndpointInfo
 			if err := proto.Unmarshal(v, &entity); err == nil {
-				if term.Name != "" && !strings.Contains(entity.Name, term.Name) {
+				if name != "" && !strings.Contains(entity.Name, name) {
 					continue
 				}
-				if term.Host != "" && !strings.Contains(entity.Addresses, term.Host) {
+				if host != "" && !strings.Contains(entity.Addresses, host) {
 					continue
 				}
 				list = append(list, &entity)
@@ -101,44 +100,6 @@ func (s *EndpointInfoDaoImpl) SelectList(term *vo.EndpointInfoParams) ([]*po.End
 	if err != nil {
 		return nil, err
 	}
+
 	return list, err
-}
-
-func (s *EndpointInfoDaoImpl) SelectPage(term *vo.EndpointInfoParams) (*vo.EndpointInfoResp, error) {
-	list := make([]*po.EndpointInfo, 0)
-	err := _conn.View(func(tx *bbolt.Tx) error {
-		bt := tx.Bucket(_endpointBucket)
-		cursor := bt.Cursor()
-		for k, v := cursor.Last(); k != nil; k, v = cursor.Prev() {
-			var entity po.EndpointInfo
-			if err := proto.Unmarshal(v, &entity); err == nil {
-				if term.Name != "" && !strings.Contains(entity.Name, term.Name) {
-					continue
-				}
-				if term.Host != "" && !strings.Contains(entity.Addresses, term.Host) {
-					continue
-				}
-				list = append(list, &entity)
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	resp := vo.NewEndpointInfoResp()
-	resp.SetTotal(len(list))
-	if len(list) < term.Page().Limit() {
-		resp.SetItems(list)
-		return resp, nil
-	}
-	if len(list)-term.Page().StartIndex() <= term.Page().Limit() {
-		resp.SetItems(list[term.Page().StartIndex():])
-		return resp, err
-	}
-	resp.SetItems(list[term.Page().StartIndex() : term.Page().StartIndex()+term.Page().Limit()])
-
-	return resp, err
 }

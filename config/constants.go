@@ -17,10 +17,12 @@ const (
 	EndpointTypeRedis         = 1
 	EndpointTypeMongoDB       = 2
 	EndpointTypeElasticsearch = 3
-	EndpointTypeRocketMQ      = 4
-	EndpointTypeKafka         = 5
-	EndpointTypeRabbitMQ      = 6
-	EndpointTypeHttp          = 7
+	EndpointTypeClickHouse    = 4
+	EndpointTypeRocketMQ      = 5
+	EndpointTypeKafka         = 6
+	EndpointTypeRabbitMQ      = 7
+	EndpointTypeHttp          = 8
+	EndpointTypeGrpc          = 9
 
 	TransformRuleLuaScript = 1
 

@@ -27,12 +27,14 @@ func initTransformRuleAction(r *gin.Engine) {
 	}
 	r.GET("rules", s.Select)
 	r.POST("rules/validate", s.Validate)
+	r.GET("rules/by_id/:id", s.GetBy)
 }
 
 func (s *TransformRuleAction) Select(c *gin.Context) {
 	pipelineId := stringutils.ToUint64Safe(c.Query("pipelineId"))
+	endpointType := stringutils.ToInt32Safe(c.Query("endpointType"))
 
-	data, err := s.service.SelectList(pipelineId)
+	data, err := s.service.SelectList(pipelineId, endpointType)
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
 		Err500(c, err.Error())
@@ -40,6 +42,17 @@ func (s *TransformRuleAction) Select(c *gin.Context) {
 	}
 
 	RespData(c, data)
+}
+
+func (s *TransformRuleAction) GetBy(c *gin.Context) {
+	id := stringutils.ToUint64Safe(c.Param("id"))
+	vo, err := s.service.Get(id)
+	if nil != err {
+		log.Errorf("获取数据失败: %s", err.Error())
+		Err500(c, err.Error())
+		return
+	}
+	RespData(c, vo)
 }
 
 func (s *TransformRuleAction) Validate(c *gin.Context) {

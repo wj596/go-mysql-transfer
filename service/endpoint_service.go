@@ -2,9 +2,9 @@ package service
 
 import (
 	"fmt"
+
 	"go-mysql-transfer/dao"
 	"go-mysql-transfer/model/po"
-	"go-mysql-transfer/model/vo"
 	"go-mysql-transfer/util/snowflake"
 )
 
@@ -34,12 +34,8 @@ func (s *EndpointInfoService) GetByName(name string) (*po.EndpointInfo, error) {
 	return s.dao.GetByName(name)
 }
 
-func (s *EndpointInfoService) SelectList(term *vo.EndpointInfoParams) ([]*po.EndpointInfo, error) {
-	return s.dao.SelectList(term)
-}
-
-func (s *EndpointInfoService) SelectPage(term *vo.EndpointInfoParams) (*vo.EndpointInfoResp, error) {
-	return s.dao.SelectPage(term)
+func (s *EndpointInfoService) SelectList(name string, host string) ([]*po.EndpointInfo, error) {
+	return s.dao.SelectList(name, host)
 }
 
 func (s *EndpointInfoService) TestLink(vo *po.EndpointInfo) error {

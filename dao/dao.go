@@ -12,8 +12,7 @@ type SourceInfoDao interface {
 	Delete(id uint64) error
 	Get(id uint64) (*po.SourceInfo, error)
 	GetByName(name string) (*po.SourceInfo, error)
-	SelectList(term *vo.SourceInfoParams) ([]*po.SourceInfo, error)
-	SelectPage(term *vo.SourceInfoParams) (*vo.SourceInfoResp, error)
+	SelectList(name string, host string) ([]*po.SourceInfo, error)
 }
 
 type EndpointInfoDao interface {
@@ -21,8 +20,7 @@ type EndpointInfoDao interface {
 	Delete(id uint64) error
 	Get(id uint64) (*po.EndpointInfo, error)
 	GetByName(name string) (*po.EndpointInfo, error)
-	SelectList(term *vo.EndpointInfoParams) ([]*po.EndpointInfo, error)
-	SelectPage(term *vo.EndpointInfoParams) (*vo.EndpointInfoResp, error)
+	SelectList(name string, host string) ([]*po.EndpointInfo, error)
 }
 
 type PipelineInfoDao interface {
@@ -31,11 +29,12 @@ type PipelineInfoDao interface {
 	Delete(id uint64) error
 	Get(id uint64) (*po.PipelineInfo, error)
 	GetByName(name string) (*po.PipelineInfo, error)
-	SelectPage(term *vo.PipelineInfoParams) (*vo.PipelineInfoResp, error)
+	SelectList(name string) ([]*vo.PipelineInfoVO, error)
 }
 
 type TransformRuleDao interface {
-	SelectList(pipelineId uint64) ([]*po.TransformRule, error)
+	Get(id uint64) (*po.TransformRule, error)
+	SelectList(pipelineId uint64, endpointType int32) ([]*po.TransformRule, error)
 }
 
 func GetSourceInfoDao() SourceInfoDao {

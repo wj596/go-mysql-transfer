@@ -8,7 +8,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go-mysql-transfer/model/po"
-	"go-mysql-transfer/model/vo"
 	"go-mysql-transfer/util/byteutil"
 	"go-mysql-transfer/util/log"
 )
@@ -78,7 +77,7 @@ func (s *SourceInfoDaoImpl) GetByName(name string) (*po.SourceInfo, error) {
 	return &entity, err
 }
 
-func (s *SourceInfoDaoImpl) SelectList(term *vo.SourceInfoParams) ([]*po.SourceInfo, error) {
+func (s *SourceInfoDaoImpl) SelectList(name string, host string) ([]*po.SourceInfo, error) {
 	list := make([]*po.SourceInfo, 0)
 	err := _conn.View(func(tx *bbolt.Tx) error {
 		bt := tx.Bucket(_sourceBucket)
@@ -86,10 +85,10 @@ func (s *SourceInfoDaoImpl) SelectList(term *vo.SourceInfoParams) ([]*po.SourceI
 		for k, v := cursor.Last(); k != nil; k, v = cursor.Prev() {
 			var entity po.SourceInfo
 			if err := proto.Unmarshal(v, &entity); err == nil {
-				if term.Name != "" && !strings.Contains(entity.Name, term.Name) {
+				if name != "" && !strings.Contains(entity.Name, name) {
 					continue
 				}
-				if term.Host != "" && !strings.Contains(entity.Host, term.Host) {
+				if host != "" && !strings.Contains(entity.Host, host) {
 					continue
 				}
 				list = append(list, &entity)
@@ -102,43 +101,4 @@ func (s *SourceInfoDaoImpl) SelectList(term *vo.SourceInfoParams) ([]*po.SourceI
 		return nil, err
 	}
 	return list, err
-}
-
-func (s *SourceInfoDaoImpl) SelectPage(term *vo.SourceInfoParams) (*vo.SourceInfoResp, error) {
-	list := make([]*po.SourceInfo, 0)
-	err := _conn.View(func(tx *bbolt.Tx) error {
-		bt := tx.Bucket(_sourceBucket)
-		cursor := bt.Cursor()
-		for k, v := cursor.Last(); k != nil; k, v = cursor.Prev() {
-			var entity po.SourceInfo
-			if err := proto.Unmarshal(v, &entity); err == nil {
-				if term.Name != "" && !strings.Contains(entity.Name, term.Name) {
-					continue
-				}
-				if term.Host != "" && !strings.Contains(entity.Host, term.Host) {
-					continue
-				}
-				list = append(list, &entity)
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	resp := new(vo.SourceInfoResp)
-	resp.SetTotal(len(list))
-	if len(list) < term.Page().Limit() {
-		resp.SetItems(list)
-		return resp, nil
-	}
-	if len(list)-term.Page().StartIndex() <= term.Page().Limit() {
-		resp.SetItems(list[term.Page().StartIndex():])
-		return resp, err
-	}
-	resp.SetItems(list[term.Page().StartIndex() : term.Page().StartIndex()+term.Page().Limit()])
-
-	return resp, err
 }

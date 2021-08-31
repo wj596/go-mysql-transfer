@@ -53,7 +53,7 @@ message TransformRule {
   repeated EsIndexMapping esIndexMappings = 30; //Elasticsearch mappings映射关系,可以为空，为空时根据数据类型自己推导
 
   // Rocketmq Kafka Rabbitmq
-  string    mqTopic = 31; // topic名称，可以为空，为空时使用表名称
+  string mqTopic = 31; // topic名称，可以为空，为空时使用表名称
   bool  mqReserveRawData = 32;   // 保留update之前的数据
 
   // HTTP 参数名称

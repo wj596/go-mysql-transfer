@@ -63,19 +63,18 @@ func (s *PipelineInfoService) GetByName(name string) (*po.PipelineInfo, error) {
 	return s.dao.GetByName(name)
 }
 
-func (s *PipelineInfoService) SelectPage(term *vo.PipelineInfoParams) (*vo.PipelineInfoResp, error) {
-	resp, err := s.dao.SelectPage(term)
+func (s *PipelineInfoService) SelectList(name string) ([]*vo.PipelineInfoVO, error) {
+	items, err := s.dao.SelectList(name)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, v := range resp.Items {
+	for _, v := range items {
 		if source, err := s.sourceDao.Get(v.SourceId); err != nil {
 			return nil, err
 		} else {
 			v.SourceName = fmt.Sprintf("%s[%s:%d]", source.Name, source.Host, source.Port)
 		}
-
 		if endpoint, err := s.endpointDao.Get(v.EndpointId); err != nil {
 			return nil, err
 		} else {
@@ -83,5 +82,5 @@ func (s *PipelineInfoService) SelectPage(term *vo.PipelineInfoParams) (*vo.Pipel
 		}
 	}
 
-	return resp, nil
+	return items, nil
 }

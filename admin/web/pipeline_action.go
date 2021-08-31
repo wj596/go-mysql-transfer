@@ -22,7 +22,7 @@ func initPipelineInfoAction(r *gin.Engine) {
 	r.PUT("pipelines", s.Update)
 	r.DELETE("pipelines/:id", s.DeleteBy)
 	r.GET("pipelines/:id", s.GetBy)
-	r.GET("pipelines", s.SelectPage)
+	r.GET("pipelines", s.Select)
 }
 
 func (s *PipelineInfoAction) Insert(c *gin.Context) {
@@ -96,18 +96,15 @@ func (s *PipelineInfoAction) GetBy(c *gin.Context) {
 	RespData(c, vo)
 }
 
-func (s *PipelineInfoAction) SelectPage(c *gin.Context) {
-	term := vo.NewPipelineInfoParams()
-	term.SetName(c.Query("name"))
-	term.Page().SetCurrentParam(c.Query("page"))
-	term.Page().SetLimitParam(c.Query("pageSize"))
-	vo, err := s.service.SelectPage(term)
+func (s *PipelineInfoAction) Select(c *gin.Context) {
+	name := c.Query("name")
+	items, err := s.service.SelectList(name)
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
 		Err500(c, err.Error())
 		return
 	}
-	RespData(c, vo)
+	RespData(c, items)
 }
 
 func (s *PipelineInfoAction) check(vo *vo.PipelineInfoVO, update bool) error {
@@ -120,5 +117,3 @@ func (s *PipelineInfoAction) check(vo *vo.PipelineInfoVO, update bool) error {
 	}
 	return nil
 }
-
-

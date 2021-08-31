@@ -155,7 +155,7 @@ func (s *PipelineInfoDaoImpl) GetByName(name string) (*po.PipelineInfo, error) {
 	return &entity, err
 }
 
-func (s *PipelineInfoDaoImpl) SelectPage(term *vo.PipelineInfoParams) (*vo.PipelineInfoResp, error) {
+func (s *PipelineInfoDaoImpl) SelectList(name string) ([]*vo.PipelineInfoVO, error) {
 	list := make([]*vo.PipelineInfoVO, 0)
 	err := _conn.View(func(tx *bbolt.Tx) error {
 		bt := tx.Bucket(_pipelineBucket)
@@ -164,7 +164,7 @@ func (s *PipelineInfoDaoImpl) SelectPage(term *vo.PipelineInfoParams) (*vo.Pipel
 			var temp po.PipelineInfo
 			entity := new(vo.PipelineInfoVO)
 			if err := proto.Unmarshal(v, &temp); err == nil {
-				if term.Name != "" && !strings.Contains(temp.Name, term.Name) {
+				if name != "" && !strings.Contains(temp.Name, name) {
 					continue
 				}
 				entity.FromPO(&temp)
@@ -178,17 +178,5 @@ func (s *PipelineInfoDaoImpl) SelectPage(term *vo.PipelineInfoParams) (*vo.Pipel
 		return nil, err
 	}
 
-	resp := vo.NewPipelineInfoResp()
-	resp.SetTotal(len(list))
-	if len(list) < term.Page().Limit() {
-		resp.SetItems(list)
-		return resp, nil
-	}
-	if len(list)-term.Page().StartIndex() <= term.Page().Limit() {
-		resp.SetItems(list[term.Page().StartIndex():])
-		return resp, err
-	}
-	resp.SetItems(list[term.Page().StartIndex() : term.Page().StartIndex()+term.Page().Limit()])
-
-	return resp, err
+	return list, err
 }
