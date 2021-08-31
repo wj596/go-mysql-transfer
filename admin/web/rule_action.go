@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -33,8 +34,9 @@ func initTransformRuleAction(r *gin.Engine) {
 func (s *TransformRuleAction) Select(c *gin.Context) {
 	pipelineId := stringutils.ToUint64Safe(c.Query("pipelineId"))
 	endpointType := stringutils.ToInt32Safe(c.Query("endpointType"))
+	isCascadePipeline := stringutils.ToBoolSafe(c.Query("isCascadePipeline"))
 
-	data, err := s.service.SelectList(pipelineId, endpointType)
+	data, err := s.service.SelectList(pipelineId, endpointType, isCascadePipeline)
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
 		Err500(c, err.Error())
@@ -62,6 +64,8 @@ func (s *TransformRuleAction) Validate(c *gin.Context) {
 		Err400(c, err.Error())
 		return
 	}
+
+	fmt.Println("Validate: \n", stringutils.ToJsonIndent(entity))
 
 	tableInfo, err := s.sourceService.SelectTableInfo(entity.SourceId, entity.Schema, entity.Table)
 	if err != nil {

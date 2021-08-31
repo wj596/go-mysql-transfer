@@ -62,6 +62,14 @@ func ToInt64Safe(str string) int64 {
 	return v
 }
 
+// ToBoolSafe 转换为bool
+func ToBoolSafe(str string) bool {
+	if str == "true" {
+		return true
+	}
+	return false
+}
+
 // ToUint64Safe  转换为Uint64
 func ToUint64Safe(str string) uint64 {
 	v, e := strconv.ParseUint(str, 10, 64)

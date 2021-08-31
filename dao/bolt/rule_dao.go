@@ -12,7 +12,7 @@ import (
 type TransformRuleDaoImpl struct {
 }
 
-func (s *TransformRuleDaoImpl) Get(id uint64) (*po.TransformRule, error){
+func (s *TransformRuleDaoImpl) Get(id uint64) (*po.TransformRule, error) {
 	var entity po.TransformRule
 	err := _conn.View(func(tx *bbolt.Tx) error {
 		bt := tx.Bucket(_ruleBucket)
@@ -34,12 +34,13 @@ func (s *TransformRuleDaoImpl) SelectList(pipelineId uint64, endpointType int32)
 		for k, v := cursor.Last(); k != nil; k, v = cursor.Prev() {
 			var entity po.TransformRule
 			if err := proto.Unmarshal(v, &entity); err == nil {
-				if pipelineId != 0 && entity.PipelineInfoId == pipelineId {
-					list = append(list, &entity)
+				if pipelineId != 0 && entity.PipelineInfoId != pipelineId {
+					continue
 				}
-				if endpointType != 0 && entity.EndpointType == endpointType {
-					list = append(list, &entity)
+				if endpointType != 0 && entity.EndpointType != endpointType {
+					continue
 				}
+				list = append(list, &entity)
 			}
 		}
 		return nil

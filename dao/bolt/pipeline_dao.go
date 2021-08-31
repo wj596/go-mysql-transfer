@@ -98,13 +98,12 @@ func (s *PipelineInfoDaoImpl) Delete(id uint64) error {
 			var temp po.TransformRule
 			if err := proto.Unmarshal(v, &temp); err == nil {
 				if temp.PipelineInfoId == id {
-					rIds = append(rIds, temp.PipelineInfoId)
+					rIds = append(rIds, temp.Id)
 				}
 			}
 		}
-
-		for _, id := range rIds {
-			if err := rBt.Delete(byteutil.Uint64ToBytes(id)); err != nil {
+		for _, rid := range rIds {
+			if err := rBt.Delete(byteutil.Uint64ToBytes(rid)); err != nil {
 				return err
 			}
 		}

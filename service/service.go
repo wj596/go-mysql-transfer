@@ -6,11 +6,11 @@ import (
 )
 
 var (
-	_authService         *AuthService
-	_sourceInfoService   *SourceInfoService
-	_endpointInfoService *EndpointInfoService
+	_authService          *AuthService
+	_sourceInfoService    *SourceInfoService
+	_endpointInfoService  *EndpointInfoService
 	_transformRuleService *TransformRuleService
-	_pipelineInfoService *PipelineInfoService
+	_pipelineInfoService  *PipelineInfoService
 )
 
 func Initialize() error {
@@ -29,12 +29,13 @@ func Initialize() error {
 	}
 
 	_transformRuleService = &TransformRuleService{
-		dao:     dao.GetTransformRuleDao(),
+		dao:         dao.GetTransformRuleDao(),
+		pipelineDao: dao.GetPipelineInfoDao(),
 	}
 
 	_pipelineInfoService = &PipelineInfoService{
-		dao:     dao.GetPipelineInfoDao(),
-		ruleDao: dao.GetTransformRuleDao(),
+		dao:         dao.GetPipelineInfoDao(),
+		ruleDao:     dao.GetTransformRuleDao(),
 		sourceDao:   dao.GetSourceInfoDao(),
 		endpointDao: dao.GetEndpointInfoDao(),
 	}

@@ -84,16 +84,3 @@ func TestSourceInfoDao_Get(t *testing.T) {
 	}
 	fmt.Println(stringutils.ToJsonIndent(entity))
 }
-
-func TestSourceInfoDao_SelectPage(t *testing.T) {
-	//before(t)
-	//
-	//dao := new(SourceInfoDaoImpl)
-	//
-	//req := pageutils.NewPageRequest(1, 10)
-	//resp, err := dao.SelectPage(req)
-	//if err != nil {
-	//	t.Fatal(err.Error())
-	//}
-	//fmt.Println(stringutils.ToJsonIndent(resp))
-}

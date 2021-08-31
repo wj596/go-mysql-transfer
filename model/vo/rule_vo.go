@@ -31,14 +31,16 @@ type EsIndexMappingItem struct {
 // TransformRuleVO '转换规则'值对象
 // see TransformRule
 type TransformRuleVO struct {
-	Id                                 uint64                      `json:"id,string`
+	Id                                 uint64                      `json:"id,string"`
 	Key                                string                      `json:"key"`
 	PipelineInfoId                     uint64                      `json:"pipelineInfoId,string"`
+	PipelineInfoName                   string                      `json:"pipelineInfoName"`
 	SourceId                           uint64                      `json:"sourceId,string"`
 	EndpointId                         uint64                      `json:"endpointId,string"`
 	EndpointType                       int32                       `json:"endpointType"`
 	Type                               int32                       `json:"type"`
 	TypeName                           string                      `json:"typeName"`
+	IsCopy                             bool                        `json:"isCopy"`
 	ReceiveType                        string                      `json:"receiveType"`
 	Schema                             string                      `json:"schema"`
 	Table                              string                      `json:"table"`
@@ -169,6 +171,7 @@ func (s *TransformRuleVO) ToPO() *po.TransformRule {
 }
 
 func (s *TransformRuleVO) FromPO(p *po.TransformRule) {
+	s.Id = p.Id
 	s.Type = p.Type
 	s.TypeName = "规则"
 	if p.Type == config.TransformRuleLuaScript {
