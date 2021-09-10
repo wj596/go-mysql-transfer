@@ -23,7 +23,7 @@ func (s *PipelineInfoService) Insert(vo *vo.PipelineInfoVO) error {
 	entity.Id, _ = snowflake.NextId()
 	entity.CreateTime = dateutils.NowFormatted()
 	entity.UpdateTime = dateutils.NowFormatted()
-	entity.Status = config.StatusOK
+	entity.Status = config.PipelineInfoStatusInitialized
 
 	rules := make([]*po.TransformRule, len(vo.Rules))
 	for i, v := range vo.Rules {

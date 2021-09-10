@@ -11,9 +11,6 @@ const (
 )
 
 const (
-	StatusOK      = 0
-	StatusDisable = 1
-
 	EndpointTypeRedis         = 1
 	EndpointTypeMongoDB       = 2
 	EndpointTypeElasticsearch = 3
@@ -23,12 +20,28 @@ const (
 	EndpointTypeRabbitMQ      = 7
 	EndpointTypeHttp          = 8
 	EndpointTypeGrpc          = 9
+)
 
-	TransformRuleLuaScript = 1
+const (
+	TransformRuleTypeRule = 0 //规则
+	TransformRuleTypeLuaScript = 1 //脚本
+)
 
+const (
 	EsIndexBuildTypeExtend     = "0" //使用已经存在的
 	EsIndexBuildTypeAutoCreate = "1" //自动创建
 )
+
+const (
+	PipelineInfoStatusInitialized   = 0 //未启动
+	PipelineInfoStatusRunning = 1 //运行中
+	PipelineInfoStatusPause = 2 //暂停
+)
+
+
+
+
+
 
 func GetTypeName(endpointType uint32) string {
 	switch endpointType {

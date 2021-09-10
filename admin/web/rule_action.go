@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"github.com/siddontang/go-mysql/schema"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -86,8 +87,19 @@ func (s *TransformRuleAction) Validate(c *gin.Context) {
 		return
 	}
 
-	excludeColumnMap := make(map[string]int)
+	columnMap := make(map[string]*vo.TableColumnInfo) // 列
+	for _, column := range tableInfo.Columns {
+		columnMap[column.Name] = column
+	}
+
+	excludeColumnMap := make(map[string]int) // 排除的列
 	for _, exclude := range entity.ExcludeColumnList {
+		if entity.IsCopy {
+			if _, exist := columnMap[exclude]; !exist {
+				Err400(c, "要拷贝规则中'排除的列："+exclude+"'，不是目标Table中的有效列，无法完成拷贝，请重新选择！！！")
+				return
+			}
+		}
 		excludeColumnMap[exclude] = 1
 	}
 
@@ -95,6 +107,13 @@ func (s *TransformRuleAction) Validate(c *gin.Context) {
 		columnMappingMap := make(map[string]int)
 		mappingColumnMap := make(map[string]int)
 		for _, item := range entity.ColumnMappingGroups {
+			if entity.IsCopy {
+				if _, exist := columnMap[item.Column]; !exist {
+					Err400(c, "要拷贝规则中'列名映射："+item.Column+"'，不是目标Table中的有效列，无法完成拷贝，请重新选择！！！")
+					return
+				}
+			}
+
 			if _, exist := excludeColumnMap[item.Column]; exist {
 				Err400(c, "'列名映射'不能映射已经排除的列,请重新选择！！！")
 				return
@@ -119,7 +138,11 @@ func (s *TransformRuleAction) Validate(c *gin.Context) {
 	if entity.AdditionalColumnValueMappingGroups != nil {
 		for _, item := range entity.AdditionalColumnValueMappingGroups {
 			for _, column := range tableInfo.Columns {
-				if strings.ToLower(item.Column) == column.Name {
+				if strings.ToLower(item.Column) == strings.ToLower(column.Name) {
+					if entity.IsCopy {
+						Err400(c, "要拷贝规则中'附加键值："+item.Column+"'，是目标Table中已经存在的列名，无法完成拷贝，请重新选择！！！")
+						return
+					}
 					Err400(c, "'附加键值'中附加列的名称不能为已经存在的列名,请重新输入！！！")
 					return
 				}
@@ -129,14 +152,43 @@ func (s *TransformRuleAction) Validate(c *gin.Context) {
 
 	if endpoint.Type == config.EndpointTypeRedis {
 		if entity.RedisKeyColumn != "" {
+			if entity.IsCopy {
+				if _, exist := columnMap[entity.RedisKeyColumn]; !exist {
+					Err400(c, "要拷贝规则中'key列："+entity.RedisKeyColumn+"'，不是目标Table中的有效列，无法完成拷贝，请重新选择！！！")
+					return
+				}
+			}
 			if _, exist := excludeColumnMap[entity.RedisKeyColumn]; exist {
 				Err400(c, "已排除的列不能作为'key列',请重选择！！！")
 				return
 			}
 		}
 		if entity.RedisHashFieldColumn != "" {
-			if _, exist := excludeColumnMap[entity.RedisKeyColumn]; exist {
+			if entity.IsCopy {
+				if _, exist := columnMap[entity.RedisHashFieldColumn]; !exist {
+					Err400(c, "要拷贝规则中'field列："+entity.RedisHashFieldColumn+"'，不是目标Table中的有效列，无法完成拷贝，请重新选择！！！")
+					return
+				}
+			}
+			if _, exist := excludeColumnMap[entity.RedisHashFieldColumn]; exist {
 				Err400(c, "已排除的列不能作为'field列',请重选择！！！")
+				return
+			}
+		}
+		if entity.RedisSortedSetScoreColumn != "" {
+			if entity.IsCopy {
+				if _, exist := columnMap[entity.RedisSortedSetScoreColumn]; !exist {
+					Err400(c, "要拷贝规则中'score列："+entity.RedisSortedSetScoreColumn+"'，不是目标Table中的有效列，无法完成拷贝，请重新选择！！！")
+					return
+				}
+			}
+			if _, exist := excludeColumnMap[entity.RedisSortedSetScoreColumn]; exist {
+				Err400(c, "已排除的列不能作为'score列',请重选择！！！")
+				return
+			}
+			column,_ := columnMap[entity.RedisSortedSetScoreColumn]
+			if !(column.Type==schema.TYPE_NUMBER ||column.Type==schema.TYPE_FLOAT|| column.Type==schema.TYPE_DECIMAL){
+				Err400(c, "'score列'必须为数值类型,请重选择！！！")
 				return
 			}
 		}
@@ -147,6 +199,13 @@ func (s *TransformRuleAction) Validate(c *gin.Context) {
 			columnMappingMap := make(map[string]int)
 			mappingColumnMap := make(map[string]int)
 			for _, item := range entity.EsIndexMappingGroups {
+				if entity.IsCopy {
+					if _, exist := columnMap[item.Column]; !exist {
+						Err400(c, "要拷贝规则中'索引Mapping："+item.Column+"'，不是目标Table中的有效列，无法完成拷贝，请重新选择！！！")
+						return
+					}
+				}
+
 				if _, exist := excludeColumnMap[item.Column]; exist {
 					Err400(c, "'索引Mapping'不能包含已经排除的列,请重新选择！！！")
 					return

@@ -81,9 +81,9 @@ type TransformRuleVO struct {
 }
 
 func (s *TransformRuleVO) ToPO() *po.TransformRule {
-	if s.Type == config.TransformRuleLuaScript {
+	if s.Type == config.TransformRuleTypeLuaScript {
 		return &po.TransformRule{
-			Type:      s.Type, //0规则 1脚本
+			Type:      s.Type,
 			Schema:    s.Schema,
 			Table:     s.Table,
 			LuaScript: s.LuaScript,
@@ -174,7 +174,7 @@ func (s *TransformRuleVO) FromPO(p *po.TransformRule) {
 	s.Id = p.Id
 	s.Type = p.Type
 	s.TypeName = "规则"
-	if p.Type == config.TransformRuleLuaScript {
+	if p.Type == config.TransformRuleTypeLuaScript {
 		s.TypeName = "脚本"
 	}
 	s.EndpointType = p.EndpointType
@@ -182,7 +182,7 @@ func (s *TransformRuleVO) FromPO(p *po.TransformRule) {
 	s.Table = p.Table
 	s.PipelineInfoId = p.PipelineInfoId
 	s.Key = fmt.Sprintf("%s.%s", p.Schema, p.Table)
-	if p.Type == config.TransformRuleLuaScript {
+	if p.Type == config.TransformRuleTypeLuaScript {
 		s.LuaScript = p.LuaScript
 	} else {
 		s.ReceiveType = stringutils.ToString(p.ReceiveType)
