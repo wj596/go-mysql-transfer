@@ -1,6 +1,7 @@
 package bolt
 
 import (
+	"encoding/binary"
 	"fmt"
 	"path/filepath"
 
@@ -12,17 +13,22 @@ import (
 )
 
 const (
-	_storePath = "db"
-	_fileMode  = 0600
-	_fileName  = "data.db"
+	_storePath        = "db"
+	_fileMode         = 0600
+	_metadataFileName = "metadata.db"
+	_commitFileName   = "commit.db"
 )
 
 var (
-	_conn           *bbolt.DB
-	_sourceBucket   = []byte("source_bucket")
-	_endpointBucket = []byte("endpoint_bucket")
-	_pipelineBucket = []byte("pipeline_bucket")
-	_ruleBucket     = []byte("rule_bucket")
+	_mdb *bbolt.DB
+	_cdb *bbolt.DB
+
+	_sourceBucket   = []byte("source")
+	_endpointBucket = []byte("endpoint")
+	_pipelineBucket = []byte("pipeline")
+	_ruleBucket     = []byte("rule")
+
+	_commitBucket = []byte("commit")
 )
 
 func Initialize(config *config.AppConfig) error {
@@ -31,13 +37,21 @@ func Initialize(config *config.AppConfig) error {
 		return errors.New(fmt.Sprintf("create metadataFilePath : %s", err.Error()))
 	}
 
-	filePath := filepath.Join(storePath, _fileName)
-	conn, err := bbolt.Open(filePath, _fileMode, bbolt.DefaultOptions)
+	var err error
+
+	metadataFilePath := filepath.Join(storePath, _metadataFileName)
+	_mdb, err = bbolt.Open(metadataFilePath, _fileMode, bbolt.DefaultOptions)
 	if err != nil {
 		return errors.New(fmt.Sprintf("open boltdb: %s", err.Error()))
 	}
 
-	err = conn.Update(func(tx *bbolt.Tx) error {
+	recordFilePath := filepath.Join(storePath, _commitFileName)
+	_cdb, err = bbolt.Open(recordFilePath, _fileMode, bbolt.DefaultOptions)
+	if err != nil {
+		return errors.New(fmt.Sprintf("open boltdb: %s", err.Error()))
+	}
+
+	err = _mdb.Update(func(tx *bbolt.Tx) error {
 		tx.CreateBucketIfNotExists(_sourceBucket)
 		return nil
 	})
@@ -45,7 +59,7 @@ func Initialize(config *config.AppConfig) error {
 		return errors.New(fmt.Sprintf("create bucket: %s", err.Error()))
 	}
 
-	err = conn.Update(func(tx *bbolt.Tx) error {
+	err = _mdb.Update(func(tx *bbolt.Tx) error {
 		tx.CreateBucketIfNotExists(_endpointBucket)
 		return nil
 	})
@@ -53,7 +67,7 @@ func Initialize(config *config.AppConfig) error {
 		return errors.New(fmt.Sprintf("create bucket: %s", err.Error()))
 	}
 
-	err = conn.Update(func(tx *bbolt.Tx) error {
+	err = _mdb.Update(func(tx *bbolt.Tx) error {
 		tx.CreateBucketIfNotExists(_pipelineBucket)
 		return nil
 	})
@@ -61,7 +75,7 @@ func Initialize(config *config.AppConfig) error {
 		return errors.New(fmt.Sprintf("create bucket: %s", err.Error()))
 	}
 
-	err = conn.Update(func(tx *bbolt.Tx) error {
+	err = _mdb.Update(func(tx *bbolt.Tx) error {
 		tx.CreateBucketIfNotExists(_ruleBucket)
 		return nil
 	})
@@ -69,15 +83,29 @@ func Initialize(config *config.AppConfig) error {
 		return errors.New(fmt.Sprintf("create bucket: %s", err.Error()))
 	}
 
-	_conn = conn
-	return nil
+	err = _cdb.Update(func(tx *bbolt.Tx) error {
+		tx.CreateBucketIfNotExists(_commitBucket)
+		return nil
+	})
+	if err != nil {
+		return errors.New(fmt.Sprintf("create bucket: %s", err.Error()))
+	}
 
+	return nil
 }
 
 func Close() {
-
-	if _conn != nil {
-		_conn.Close()
+	if _mdb != nil {
+		_mdb.Close()
 	}
 
+	if _cdb != nil {
+		_cdb.Close()
+	}
+}
+
+func marshalId(id uint64) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, id)
+	return buf
 }

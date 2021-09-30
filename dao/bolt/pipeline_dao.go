@@ -4,37 +4,39 @@ import (
 	"strings"
 
 	"github.com/juju/errors"
+	"github.com/siddontang/go-mysql/mysql"
 	"go.etcd.io/bbolt"
 	"google.golang.org/protobuf/proto"
 
-	"go-mysql-transfer/model/po"
-	"go-mysql-transfer/model/vo"
-	"go-mysql-transfer/util/byteutil"
+	"go-mysql-transfer/domain/po"
+	"go-mysql-transfer/domain/vo"
 	"go-mysql-transfer/util/log"
 )
 
-type PipelineInfoDaoImpl struct {
+type PipelineInfoDao struct {
 }
 
-func (s *PipelineInfoDaoImpl) Insert(pipeline *po.PipelineInfo, rules []*po.TransformRule) error {
-	return _conn.Update(func(tx *bbolt.Tx) error {
-		pBt := tx.Bucket(_pipelineBucket)
-		rBt := tx.Bucket(_ruleBucket)
+func (s *PipelineInfoDao) getBucket(tx *bbolt.Tx) *bbolt.Bucket {
+	return tx.Bucket(_pipelineBucket)
+}
 
-		pData, err := proto.Marshal(pipeline)
+func (s *PipelineInfoDao) Insert(pipeline *po.PipelineInfo, rules []*po.TransformRule) error {
+	return _mdb.Update(func(tx *bbolt.Tx) error {
+		data, err := proto.Marshal(pipeline)
 		if err != nil {
 			return err
 		}
-		if pBt.Put(byteutil.Uint64ToBytes(pipeline.Id), pData); err != nil {
+		if s.getBucket(tx).Put(marshalId(pipeline.Id), data); err != nil {
 			return err
 		}
 
+		ruleBucket := tx.Bucket(_ruleBucket)
 		for _, rule := range rules {
-			rData, err := proto.Marshal(rule)
+			d, err := proto.Marshal(rule)
 			if err != nil {
 				return err
 			}
-			if rBt.Put(byteutil.Uint64ToBytes(rule.Id), rData); err != nil {
+			if ruleBucket.Put(marshalId(rule.Id), d); err != nil {
 				return err
 			}
 		}
@@ -43,94 +45,159 @@ func (s *PipelineInfoDaoImpl) Insert(pipeline *po.PipelineInfo, rules []*po.Tran
 	})
 }
 
-func (s *PipelineInfoDaoImpl) Update(pipeline *po.PipelineInfo, rules []*po.TransformRule) error {
-	return _conn.Update(func(tx *bbolt.Tx) error {
-		pBt := tx.Bucket(_pipelineBucket)
-		rBt := tx.Bucket(_ruleBucket)
-
-		rIds := make([]uint64, 0)
-		rCursor := rBt.Cursor()
-		for k, v := rCursor.First(); k != nil; k, v = rCursor.Next() {
-			var temp po.TransformRule
-			if err := proto.Unmarshal(v, &temp); err == nil {
-				if temp.PipelineInfoId == pipeline.Id {
-					rIds = append(rIds, temp.Id)
+func (s *PipelineInfoDao) UpdateEntity(pipeline *po.PipelineInfo, rules []*po.TransformRule) error {
+	return _mdb.Update(func(tx *bbolt.Tx) error {
+		// delete rules
+		ruleIds := make([]uint64, 0)
+		ruleBucket := tx.Bucket(_ruleBucket)
+		ruleCursor := ruleBucket.Cursor()
+		for k, v := ruleCursor.First(); k != nil; k, v = ruleCursor.Next() {
+			var tempRule po.TransformRule
+			if err := proto.Unmarshal(v, &tempRule); err == nil {
+				if tempRule.PipelineInfoId == pipeline.Id {
+					ruleIds = append(ruleIds, tempRule.Id)
 				}
 			}
 		}
-
-		for _, id := range rIds {
-			if err := rBt.Delete(byteutil.Uint64ToBytes(id)); err != nil {
+		for _, id := range ruleIds {
+			if err := ruleBucket.Delete(marshalId(id)); err != nil {
 				return err
 			}
 		}
 
+		// save rules
 		for _, rule := range rules {
-			rData, err := proto.Marshal(rule)
+			d, err := proto.Marshal(rule)
 			if err != nil {
 				return err
 			}
-			if rBt.Put(byteutil.Uint64ToBytes(rule.Id), rData); err != nil {
+			if ruleBucket.Put(marshalId(rule.Id), d); err != nil {
 				return err
 			}
 		}
 
-		pData, err := proto.Marshal(pipeline)
+		// save PipelineInfo
+		pipelineData, err := proto.Marshal(pipeline)
 		if err != nil {
 			return err
 		}
-		if pBt.Put(byteutil.Uint64ToBytes(pipeline.Id), pData); err != nil {
-			return err
-		}
-
-		return nil
+		return s.getBucket(tx).Put(marshalId(pipeline.Id), pipelineData)
 	})
 }
 
-func (s *PipelineInfoDaoImpl) Delete(id uint64) error {
-	return _conn.Update(func(tx *bbolt.Tx) error {
-		pBt := tx.Bucket(_pipelineBucket)
-		rBt := tx.Bucket(_ruleBucket)
+func (s *PipelineInfoDao) UpdateStatus(id uint64, status uint32) error {
+	return _mdb.Update(func(tx *bbolt.Tx) error {
+		var entity po.PipelineInfo
+		bucket := tx.Bucket(_pipelineBucket)
+		idData := marshalId(id)
+		entityData := bucket.Get(idData)
+		if entityData == nil {
+			return errors.NotFoundf("PipelineInfo")
+		}
+		err := proto.Unmarshal(entityData, &entity)
+		if err != nil {
+			return err
+		}
 
-		rIds := make([]uint64, 0)
-		rCursor := rBt.Cursor()
-		for k, v := rCursor.First(); k != nil; k, v = rCursor.Next() {
-			var temp po.TransformRule
-			if err := proto.Unmarshal(v, &temp); err == nil {
-				if temp.PipelineInfoId == id {
-					rIds = append(rIds, temp.Id)
+		entity.Status = status
+		entityData, err = proto.Marshal(&entity)
+		if err != nil {
+			return err
+		}
+		return bucket.Put(idData, entityData)
+	})
+}
+
+func (s *PipelineInfoDao) UpdatePosition(id uint64, pos mysql.Position) error {
+	return _mdb.Update(func(tx *bbolt.Tx) error {
+		var entity po.PipelineInfo
+		bucket := tx.Bucket(_pipelineBucket)
+		idData := marshalId(id)
+		entityData := bucket.Get(idData)
+		if entityData == nil {
+			return errors.NotFoundf("PipelineInfo")
+		}
+		err := proto.Unmarshal(entityData, &entity)
+		if err != nil {
+			return err
+		}
+
+		entity.PosName = pos.Name
+		entity.PosIndex = pos.Pos
+		entityData, err = proto.Marshal(&entity)
+		if err != nil {
+			return err
+		}
+		return bucket.Put(idData, entityData)
+	})
+}
+
+func (s *PipelineInfoDao) Delete(id uint64) error {
+	return _mdb.Update(func(tx *bbolt.Tx) error {
+		// delete rules
+		ruleIds := make([]uint64, 0)
+		ruleBucket := tx.Bucket(_ruleBucket)
+		ruleCursor := ruleBucket.Cursor()
+		for k, v := ruleCursor.First(); k != nil; k, v = ruleCursor.Next() {
+			var tempRule po.TransformRule
+			if err := proto.Unmarshal(v, &tempRule); err == nil {
+				if tempRule.PipelineInfoId == id {
+					ruleIds = append(ruleIds, tempRule.Id)
 				}
 			}
 		}
-		for _, rid := range rIds {
-			if err := rBt.Delete(byteutil.Uint64ToBytes(rid)); err != nil {
+		for _, ruleId := range ruleIds {
+			if err := ruleBucket.Delete(marshalId(ruleId)); err != nil {
 				return err
 			}
 		}
 
-		return pBt.Delete(byteutil.Uint64ToBytes(id))
+		return s.getBucket(tx).Delete(marshalId(id))
 	})
 }
 
-func (s *PipelineInfoDaoImpl) Get(id uint64) (*po.PipelineInfo, error) {
+func (s *PipelineInfoDao) Get(id uint64) (*po.PipelineInfo, error) {
 	var entity po.PipelineInfo
-	err := _conn.View(func(tx *bbolt.Tx) error {
-		bt := tx.Bucket(_pipelineBucket)
-		data := bt.Get(byteutil.Uint64ToBytes(id))
+	err := _mdb.View(func(tx *bbolt.Tx) error {
+		data := s.getBucket(tx).Get(marshalId(id))
 		if data == nil {
 			return errors.NotFoundf("PipelineInfo")
 		}
 		return proto.Unmarshal(data, &entity)
 	})
+
+	if err != nil {
+		return nil, err
+	}
 	return &entity, err
 }
 
-func (s *PipelineInfoDaoImpl) GetByName(name string) (*po.PipelineInfo, error) {
+func (s *PipelineInfoDao) GetPosition(id uint64) (mysql.Position, error) {
+	var entity po.PipelineInfo
+	err := _mdb.View(func(tx *bbolt.Tx) error {
+		data := tx.Bucket(_pipelineBucket).Get(marshalId(id))
+		if data == nil {
+			return errors.NotFoundf("PipelineInfo")
+		}
+		return proto.Unmarshal(data, &entity)
+	})
+
+	if err != nil {
+		log.Error(err.Error())
+		return mysql.Position{}, err
+	}
+
+	return mysql.Position{
+		Name: entity.PosName,
+		Pos:  entity.PosIndex,
+	}, nil
+}
+
+func (s *PipelineInfoDao) GetByName(name string) (*po.PipelineInfo, error) {
 	var entity po.PipelineInfo
 	var found bool
-	err := _conn.View(func(tx *bbolt.Tx) error {
-		bt := tx.Bucket(_pipelineBucket)
-		cursor := bt.Cursor()
+	err := _mdb.View(func(tx *bbolt.Tx) error {
+		cursor := tx.Bucket(_pipelineBucket).Cursor()
 		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
 			if err := proto.Unmarshal(v, &entity); err == nil {
 				if name == entity.Name {
@@ -147,27 +214,48 @@ func (s *PipelineInfoDaoImpl) GetByName(name string) (*po.PipelineInfo, error) {
 		return nil, err
 	}
 	if !found {
-		log.Warnf("PipelineInfo not found by name[%s]", name)
 		return nil, errors.NotFoundf("PipelineInfo")
 	}
-
 	return &entity, err
 }
 
-func (s *PipelineInfoDaoImpl) SelectList(name string) ([]*vo.PipelineInfoVO, error) {
-	list := make([]*vo.PipelineInfoVO, 0)
-	err := _conn.View(func(tx *bbolt.Tx) error {
-		bt := tx.Bucket(_pipelineBucket)
-		cursor := bt.Cursor()
+func (s *PipelineInfoDao) GetBySourceAndEndpoint(sourceId, endpointId uint64) (*po.PipelineInfo, error) {
+	var entity po.PipelineInfo
+	var found bool
+	err := _mdb.View(func(tx *bbolt.Tx) error {
+		cursor := tx.Bucket(_pipelineBucket).Cursor()
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			if err := proto.Unmarshal(v, &entity); err == nil {
+				if sourceId == entity.SourceId && endpointId == entity.EndpointId {
+					found = true
+					break
+				}
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Error(err.Error())
+		return nil, err
+	}
+	if !found {
+		return nil, errors.NotFoundf("PipelineInfo")
+	}
+	return &entity, err
+}
+
+func (s *PipelineInfoDao) SelectList(params *vo.PipelineInfoParams) ([]*po.PipelineInfo, error) {
+	list := make([]*po.PipelineInfo, 0)
+	err := _mdb.View(func(tx *bbolt.Tx) error {
+		cursor := s.getBucket(tx).Cursor()
 		for k, v := cursor.Last(); k != nil; k, v = cursor.Prev() {
-			var temp po.PipelineInfo
-			entity := new(vo.PipelineInfoVO)
-			if err := proto.Unmarshal(v, &temp); err == nil {
-				if name != "" && !strings.Contains(temp.Name, name) {
+			var entity po.PipelineInfo
+			if err := proto.Unmarshal(v, &entity); err == nil {
+				if params.Name != "" && !strings.Contains(entity.Name, params.Name) {
 					continue
 				}
-				entity.FromPO(&temp)
-				list = append(list, entity)
+				list = append(list, &entity)
 			}
 		}
 		return nil
@@ -176,6 +264,5 @@ func (s *PipelineInfoDaoImpl) SelectList(name string) ([]*vo.PipelineInfoVO, err
 	if err != nil {
 		return nil, err
 	}
-
 	return list, err
 }

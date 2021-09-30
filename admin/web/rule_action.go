@@ -2,14 +2,17 @@ package web
 
 import (
 	"fmt"
-	"github.com/siddontang/go-mysql/schema"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/juju/errors"
+	"github.com/siddontang/go-mysql/schema"
+	"github.com/yuin/gopher-lua"
+	"github.com/yuin/gopher-lua/parse"
 
-	"go-mysql-transfer/config"
-	"go-mysql-transfer/model/vo"
+	"go-mysql-transfer/domain/bo"
+	"go-mysql-transfer/domain/constants"
+	"go-mysql-transfer/domain/vo"
 	"go-mysql-transfer/service"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
@@ -19,6 +22,7 @@ type TransformRuleAction struct {
 	service         *service.TransformRuleService
 	sourceService   *service.SourceInfoService
 	endpointService *service.EndpointInfoService
+	pipelineService *service.PipelineInfoService
 }
 
 func initTransformRuleAction(r *gin.Engine) {
@@ -26,10 +30,11 @@ func initTransformRuleAction(r *gin.Engine) {
 		service:         service.GetTransformRuleService(),
 		sourceService:   service.GetSourceInfoService(),
 		endpointService: service.GetEndpointInfoService(),
+		pipelineService: service.GetPipelineInfoService(),
 	}
 	r.GET("rules", s.Select)
 	r.POST("rules/validate", s.Validate)
-	r.GET("rules/by_id/:id", s.GetBy)
+	r.GET("rules/:id", s.GetBy)
 }
 
 func (s *TransformRuleAction) Select(c *gin.Context) {
@@ -37,24 +42,40 @@ func (s *TransformRuleAction) Select(c *gin.Context) {
 	endpointType := stringutils.ToInt32Safe(c.Query("endpointType"))
 	isCascadePipeline := stringutils.ToBoolSafe(c.Query("isCascadePipeline"))
 
-	data, err := s.service.SelectList(pipelineId, endpointType, isCascadePipeline)
+	list, err := s.service.SelectList(pipelineId, endpointType)
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
 		Err500(c, err.Error())
 		return
 	}
 
-	RespData(c, data)
+	results := make([]*vo.TransformRuleVO, len(list))
+	for i, v := range list {
+		temp := new(vo.TransformRuleVO)
+		temp.FromPO(v)
+		if isCascadePipeline {
+			if vv, err := s.pipelineService.Get(v.PipelineInfoId); err == nil {
+				temp.PipelineInfoName = vv.Name
+			}
+		}
+		results[i] = temp
+	}
+
+	RespData(c, results)
 }
 
 func (s *TransformRuleAction) GetBy(c *gin.Context) {
 	id := stringutils.ToUint64Safe(c.Param("id"))
-	vo, err := s.service.Get(id)
+	data, err := s.service.Get(id)
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
 		Err500(c, err.Error())
 		return
 	}
+
+	vo := new(vo.TransformRuleVO)
+	vo.FromPO(data)
+
 	RespData(c, vo)
 }
 
@@ -87,7 +108,7 @@ func (s *TransformRuleAction) Validate(c *gin.Context) {
 		return
 	}
 
-	columnMap := make(map[string]*vo.TableColumnInfo) // 列
+	columnMap := make(map[string]*bo.TableColumnInfo) // 列
 	for _, column := range tableInfo.Columns {
 		columnMap[column.Name] = column
 	}
@@ -150,7 +171,7 @@ func (s *TransformRuleAction) Validate(c *gin.Context) {
 		}
 	}
 
-	if endpoint.Type == config.EndpointTypeRedis {
+	if endpoint.Type == constants.EndpointTypeRedis {
 		if entity.RedisKeyColumn != "" {
 			if entity.IsCopy {
 				if _, exist := columnMap[entity.RedisKeyColumn]; !exist {
@@ -186,15 +207,15 @@ func (s *TransformRuleAction) Validate(c *gin.Context) {
 				Err400(c, "已排除的列不能作为'score列',请重选择！！！")
 				return
 			}
-			column,_ := columnMap[entity.RedisSortedSetScoreColumn]
-			if !(column.Type==schema.TYPE_NUMBER ||column.Type==schema.TYPE_FLOAT|| column.Type==schema.TYPE_DECIMAL){
+			column, _ := columnMap[entity.RedisSortedSetScoreColumn]
+			if !(column.Type == schema.TYPE_NUMBER || column.Type == schema.TYPE_FLOAT || column.Type == schema.TYPE_DECIMAL) {
 				Err400(c, "'score列'必须为数值类型,请重选择！！！")
 				return
 			}
 		}
 	}
 
-	if endpoint.Type == config.EndpointTypeElasticsearch {
+	if endpoint.Type == constants.EndpointTypeElasticsearch {
 		if entity.EsIndexMappingGroups != nil {
 			columnMappingMap := make(map[string]int)
 			mappingColumnMap := make(map[string]int)
@@ -227,13 +248,31 @@ func (s *TransformRuleAction) Validate(c *gin.Context) {
 			}
 		}
 
-		if entity.EsIndexBuildType == config.EsIndexBuildTypeExtend {
+		if entity.EsIndexBuildType == constants.EsIndexBuildTypeExtend {
 			// 检查ES中是否存在索引
 		}
 
-		if entity.EsIndexBuildType == config.EsIndexBuildTypeAutoCreate {
+		if entity.EsIndexBuildType == constants.EsIndexBuildTypeAutoCreate {
 			// 创建或者更新索引
 		}
+	}
+
+	if constants.TransformRuleTypeLuaScript == entity.Type {
+		protoName := stringutils.UUID()
+		reader := strings.NewReader(entity.LuaScript)
+		chunk, err := parse.Parse(reader, protoName)
+		if err != nil {
+			log.Errorf("验证失败,Lua脚本错误，无法编译: %s", errors.ErrorStack(err))
+			Err400(c, "Lua脚本编译失败："+err.Error())
+			return
+		}
+		_, err = lua.Compile(chunk, protoName)
+		if err != nil {
+			log.Errorf("验证失败,Lua脚本错误，无法编译: %s", errors.ErrorStack(err))
+			Err400(c, "Lua脚本编译失败："+err.Error())
+			return
+		}
+		chunk = nil
 	}
 
 	RespOK(c)

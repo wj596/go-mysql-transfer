@@ -19,8 +19,6 @@
 package config
 
 import (
-	"go-mysql-transfer/util/fileutils"
-	"go-mysql-transfer/util/sysutils"
 	"io/ioutil"
 	"log"
 	"path/filepath"
@@ -28,6 +26,18 @@ import (
 
 	"github.com/juju/errors"
 	"gopkg.in/yaml.v2"
+
+	"go-mysql-transfer/util/fileutils"
+	"go-mysql-transfer/util/sysutils"
+)
+
+const (
+	_configUninitializedTip = "Config未初始化"
+	_clusterName            = "transfer"
+	_dataDir                = "store"
+	_prometheusExporterPort = 9595
+	_webPort                = 8060
+	_rpcPort                = 7060
 )
 
 var _instance *AppConfig

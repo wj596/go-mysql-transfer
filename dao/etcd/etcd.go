@@ -1,11 +1,13 @@
 package etcd
 
 import (
-	"go-mysql-transfer/config"
-	"go-mysql-transfer/util/logagent"
-	"go.etcd.io/etcd/clientv3"
 	"strings"
 	"time"
+
+	"go.etcd.io/etcd/clientv3"
+
+	"go-mysql-transfer/config"
+	"go-mysql-transfer/util/logagent"
 )
 
 var (

@@ -7,53 +7,55 @@ import (
 	"go.etcd.io/bbolt"
 	"google.golang.org/protobuf/proto"
 
-	"go-mysql-transfer/model/po"
-	"go-mysql-transfer/util/byteutil"
+	"go-mysql-transfer/domain/po"
+	"go-mysql-transfer/domain/vo"
 	"go-mysql-transfer/util/log"
 )
 
-type EndpointInfoDaoImpl struct {
+type EndpointInfoDao struct {
 }
 
-func (s *EndpointInfoDaoImpl) Save(entity *po.EndpointInfo) error {
-	return _conn.Update(func(tx *bbolt.Tx) error {
-		bt := tx.Bucket(_endpointBucket)
+func (s *EndpointInfoDao) getBucket(tx *bbolt.Tx) *bbolt.Bucket {
+	return tx.Bucket(_endpointBucket)
+}
+
+func (s *EndpointInfoDao) Save(entity *po.EndpointInfo) error {
+	return _mdb.Update(func(tx *bbolt.Tx) error {
 		data, err := proto.Marshal(entity)
 		if err != nil {
 			return err
 		}
-		id := byteutil.Uint64ToBytes(entity.Id)
-		return bt.Put(id, data)
+		return s.getBucket(tx).Put(marshalId(entity.Id), data)
 	})
 }
 
-func (s *EndpointInfoDaoImpl) Delete(id uint64) error {
-	return _conn.Update(func(tx *bbolt.Tx) error {
-		bt := tx.Bucket(_endpointBucket)
-		return bt.Delete(byteutil.Uint64ToBytes(id))
+func (s *EndpointInfoDao) Delete(id uint64) error {
+	return _mdb.Update(func(tx *bbolt.Tx) error {
+		return s.getBucket(tx).Delete(marshalId(id))
 	})
 }
 
-func (s *EndpointInfoDaoImpl) Get(id uint64) (*po.EndpointInfo, error) {
+func (s *EndpointInfoDao) Get(id uint64) (*po.EndpointInfo, error) {
 	var entity po.EndpointInfo
-	err := _conn.View(func(tx *bbolt.Tx) error {
-		bt := tx.Bucket(_endpointBucket)
-		data := bt.Get(byteutil.Uint64ToBytes(id))
+	err := _mdb.View(func(tx *bbolt.Tx) error {
+		data := s.getBucket(tx).Get(marshalId(id))
 		if data == nil {
 			return errors.NotFoundf("EndpointInfo")
 		}
 		return proto.Unmarshal(data, &entity)
 	})
 
+	if nil != err {
+		return nil, err
+	}
 	return &entity, err
 }
 
-func (s *EndpointInfoDaoImpl) GetByName(name string) (*po.EndpointInfo, error) {
+func (s *EndpointInfoDao) GetByName(name string) (*po.EndpointInfo, error) {
 	var entity po.EndpointInfo
 	var found bool
-	err := _conn.View(func(tx *bbolt.Tx) error {
-		bt := tx.Bucket(_endpointBucket)
-		cursor := bt.Cursor()
+	err := _mdb.View(func(tx *bbolt.Tx) error {
+		cursor := s.getBucket(tx).Cursor()
 		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
 			if err := proto.Unmarshal(v, &entity); err == nil {
 				if name == entity.Name {
@@ -70,25 +72,22 @@ func (s *EndpointInfoDaoImpl) GetByName(name string) (*po.EndpointInfo, error) {
 		return nil, err
 	}
 	if !found {
-		log.Warnf("EndpointInfo not found by name[%s]", name)
 		return nil, errors.NotFoundf("EndpointInfo")
 	}
-
 	return &entity, err
 }
 
-func (s *EndpointInfoDaoImpl) SelectList(name string, host string) ([]*po.EndpointInfo, error) {
+func (s *EndpointInfoDao) SelectList(params *vo.EndpointInfoParams) ([]*po.EndpointInfo, error) {
 	list := make([]*po.EndpointInfo, 0)
-	err := _conn.View(func(tx *bbolt.Tx) error {
-		bt := tx.Bucket(_endpointBucket)
-		cursor := bt.Cursor()
+	err := _mdb.View(func(tx *bbolt.Tx) error {
+		cursor := s.getBucket(tx).Cursor()
 		for k, v := cursor.Last(); k != nil; k, v = cursor.Prev() {
 			var entity po.EndpointInfo
 			if err := proto.Unmarshal(v, &entity); err == nil {
-				if name != "" && !strings.Contains(entity.Name, name) {
+				if params.Name != "" && !strings.Contains(entity.Name, params.Name) {
 					continue
 				}
-				if host != "" && !strings.Contains(entity.Addresses, host) {
+				if params.Host != "" && !strings.Contains(entity.Addresses, params.Host) {
 					continue
 				}
 				list = append(list, &entity)
@@ -100,6 +99,5 @@ func (s *EndpointInfoDaoImpl) SelectList(name string, host string) ([]*po.Endpoi
 	if err != nil {
 		return nil, err
 	}
-
 	return list, err
 }

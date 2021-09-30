@@ -4,7 +4,8 @@ import (
 	"fmt"
 
 	"go-mysql-transfer/dao"
-	"go-mysql-transfer/model/po"
+	"go-mysql-transfer/domain/po"
+	"go-mysql-transfer/endpoint"
 	"go-mysql-transfer/util/snowflake"
 )
 
@@ -38,6 +39,8 @@ func (s *EndpointInfoService) SelectList(name string, host string) ([]*po.Endpoi
 	return s.dao.SelectList(name, host)
 }
 
-func (s *EndpointInfoService) TestLink(vo *po.EndpointInfo) error {
-	return nil //mysql.TestConnection(vo.GetUsername(), vo.GetPassword(), vo.GetHost(), vo.GetPort())
+func (s *EndpointInfoService) TestLink(info *po.EndpointInfo) error {
+	ins := endpoint.NewEndpoint(info)
+	defer ins.Close()
+	return ins.Connect()
 }

@@ -7,7 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/juju/errors"
 
-	"go-mysql-transfer/model/po"
+	"go-mysql-transfer/domain/po"
+	"go-mysql-transfer/domain/vo"
 	"go-mysql-transfer/service"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
@@ -22,18 +23,18 @@ func initSourceInfoAction(r *gin.Engine) {
 		service: service.GetSourceInfoService(),
 	}
 	r.POST("sources", s.Insert)
-	r.POST("sources/test_link", s.TestLink)
+	r.POST("sources/test-link", s.TestLink)
 	r.PUT("sources", s.Update)
 	r.DELETE("sources/:id", s.DeleteBy)
-	r.GET("sources/by_id/:id", s.GetBy)
+	r.GET("sources/entity/:id", s.GetBy)
 	r.GET("sources", s.Select)
 	r.GET("sources/metadata/schemas", s.SelectSchemaList)
 	r.GET("sources/metadata/tables", s.SelectTableList)
-	r.GET("sources/metadata/table_info", s.GetTableInfo)
+	r.GET("sources/metadata/table-info", s.GetTableInfo)
 }
 
 func (s *SourceInfoAction) Insert(c *gin.Context) {
-	vo := new(po.SourceInfo)
+	vo := new(vo.SourceInfoVO)
 	if err := c.BindJSON(vo); err != nil {
 		log.Errorf("新增失败: %s", errors.ErrorStack(err))
 		Err400(c, err.Error())
@@ -46,7 +47,7 @@ func (s *SourceInfoAction) Insert(c *gin.Context) {
 		return
 	}
 
-	if err := s.service.Insert(vo); err != nil {
+	if err := s.service.Insert(vo.ToPO()); err != nil {
 		log.Errorf("新增失败: %s", errors.ErrorStack(err))
 		Err500(c, err.Error())
 		return
@@ -55,7 +56,7 @@ func (s *SourceInfoAction) Insert(c *gin.Context) {
 }
 
 func (s *SourceInfoAction) Update(c *gin.Context) {
-	vo := new(po.SourceInfo)
+	vo := new(vo.SourceInfoVO)
 	if err := c.BindJSON(vo); err != nil {
 		log.Errorf("更新失败: %s", errors.ErrorStack(err))
 		Err400(c, err.Error())
@@ -68,7 +69,7 @@ func (s *SourceInfoAction) Update(c *gin.Context) {
 		return
 	}
 
-	if err := s.service.Update(vo); err != nil {
+	if err := s.service.Update(vo.ToPO()); err != nil {
 		log.Errorf("更新失败: %s", errors.ErrorStack(err))
 		Err500(c, err.Error())
 		return
@@ -88,12 +89,16 @@ func (s *SourceInfoAction) DeleteBy(c *gin.Context) {
 
 func (s *SourceInfoAction) GetBy(c *gin.Context) {
 	id := stringutils.ToUint64Safe(c.Param("id"))
-	vo, err := s.service.Get(id)
+	po, err := s.service.Get(id)
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
 		Err500(c, err.Error())
 		return
 	}
+
+	vo := new(vo.SourceInfoVO)
+	vo.FromPO(po)
+
 	RespData(c, vo)
 }
 
@@ -107,13 +112,21 @@ func (s *SourceInfoAction) Select(c *gin.Context) {
 		Err500(c, err.Error())
 		return
 	}
-	RespData(c, list)
+
+	vos := make([]*vo.SourceInfoVO, 0, len(list))
+	for _, l := range list {
+		vo := new(vo.SourceInfoVO)
+		vo.FromPO(l)
+		vos = append(vos, vo)
+	}
+
+	RespData(c, vos)
 }
 
 func (s *SourceInfoAction) SelectSchemaList(c *gin.Context) {
 	sourceId := stringutils.ToUint64Safe(c.Query("sourceId"))
 	fmt.Println(sourceId)
-	data,err := s.service.SelectSchemaList(sourceId)
+	data, err := s.service.SelectSchemaList(sourceId)
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
 		Err500(c, err.Error())
@@ -125,7 +138,7 @@ func (s *SourceInfoAction) SelectSchemaList(c *gin.Context) {
 func (s *SourceInfoAction) SelectTableList(c *gin.Context) {
 	sourceId := stringutils.ToUint64Safe(c.Query("sourceId"))
 	schema := c.Query("schema")
-	data,err := s.service.SelectTableList(sourceId, schema)
+	data, err := s.service.SelectTableList(sourceId, schema)
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
 		Err500(c, err.Error())
@@ -138,7 +151,7 @@ func (s *SourceInfoAction) GetTableInfo(c *gin.Context) {
 	sourceId := stringutils.ToUint64Safe(c.Query("sourceId"))
 	schema := c.Query("schema")
 	table := c.Query("table")
-	data,err := s.service.SelectTableInfo(sourceId, schema, table)
+	data, err := s.service.SelectTableInfo(sourceId, schema, table)
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
 		Err500(c, err.Error())
@@ -157,20 +170,20 @@ func (s *SourceInfoAction) TestLink(c *gin.Context) {
 
 	if err := s.service.TestLink(vo); err != nil {
 		log.Errorf("链接测试失败: %s", errors.ErrorStack(err))
-		Err500(c, err.Error())
+		Err500(c, fmt.Sprintf("链接失败：%s", err.Error()))
 		return
 	}
 	RespOK(c)
 }
 
-func (s *SourceInfoAction) check(vo *po.SourceInfo) error {
-	if !govalidator.IsIP(vo.GetHost()) {
+func (s *SourceInfoAction) check(v *vo.SourceInfoVO) error {
+	if !govalidator.IsIP(v.Host) {
 		return errors.New("主机 IP格式不正确")
 	}
 
-	exist, _ := s.service.GetByName(vo.Name)
-	if exist != nil && exist.Id != vo.Id {
-		return errors.New(fmt.Sprintf("存在名称为[%s]的数据源，请更换", vo.GetName()))
+	exist, _ := s.service.GetByName(v.Name)
+	if exist != nil && exist.Id != v.Id {
+		return errors.New(fmt.Sprintf("存在名称为[%s]的数据源，请更换", v.Name))
 	}
 
 	return nil

@@ -19,8 +19,7 @@
 package metrics
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/rcrowley/go-metrics"
 	"go.uber.org/atomic"
 )
 
@@ -33,56 +32,10 @@ const (
 )
 
 var (
-	leaderState  atomic.Bool
-	destState    atomic.Bool
-	delay        atomic.Uint32
-	insertRecord map[string]*atomic.Uint64
-	updateRecord map[string]*atomic.Uint64
-	deleteRecord map[string]*atomic.Uint64
-)
-
-var (
-	leaderStateGauge = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "transfer_leader_state",
-			Help: "The cluster leader state: 0=false, 1=true",
-		},
-	)
-
-	destStateGauge = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "transfer_destination_state",
-			Help: "The destination running state: 0=stopped, 1=ok",
-		},
-	)
-
-	delayGauge = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "transfer_delay",
-			Help: "The transfer slave lag",
-		},
-	)
-
-	insertCounter = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "transfer_inserted_num",
-			Help: "The number of data inserted to destination",
-		}, []string{"table"},
-	)
-
-	updateCounter = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "transfer_updated_num",
-			Help: "The number of data updated to destination",
-		}, []string{"table"},
-	)
-
-	deleteCounter = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "transfer_deleted_num",
-			Help: "The number of data deleted from destination",
-		}, []string{"table"},
-	)
+	leaderState atomic.Bool
+	_gauges     = make(map[string]metrics.Gauge)
+	_counters   = make(map[string]metrics.Counter)
+	_meters     = make(map[string]metrics.Counter)
 )
 
 func Initialize() error {

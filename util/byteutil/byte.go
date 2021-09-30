@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"unsafe"
 )
 
 func StrToBytes(u string) []byte {
@@ -83,4 +84,14 @@ func ToJsonBytes(v interface{}) []byte {
 		return nil
 	}
 	return bytes
+}
+
+func StringToBytes(s string) []byte {
+	ptr := (*[2]uintptr)(unsafe.Pointer(&s))
+	btr := [3]uintptr{ptr[0], ptr[1], ptr[1]}
+	return *(*[]byte)(unsafe.Pointer(&btr))
+}
+
+func BytesToString(b []byte) string {
+	return *(*string)(unsafe.Pointer(&b))
 }

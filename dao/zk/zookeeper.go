@@ -7,6 +7,7 @@ import (
 	"github.com/go-zookeeper/zk"
 
 	"go-mysql-transfer/config"
+	"go-mysql-transfer/dao/path"
 	"go-mysql-transfer/util/logagent"
 	"go-mysql-transfer/util/zkutils"
 )
@@ -36,7 +37,7 @@ func Initialize(app *config.AppConfig) error {
 		}
 	}
 
-	if err := zkutils.CreateNodeIfNecessary(config.GetRootNode(), conn); err != nil {
+	if err := zkutils.CreateNodeIfNecessary(path.GetRootPath(), conn); err != nil {
 		return err
 	}
 

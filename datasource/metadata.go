@@ -2,12 +2,21 @@ package datasource
 
 import (
 	"fmt"
-	"github.com/siddontang/go-mysql/canal"
-	"go-mysql-transfer/model/vo"
 	"strings"
+
+	"github.com/siddontang/go-mysql/canal"
+
+	"go-mysql-transfer/domain/bo"
+	"go-mysql-transfer/domain/po"
 )
 
-func SelectSchemaNameList(cc *canal.Canal) ([]string, error) {
+func SelectSchemaNameList(ds *po.SourceInfo) ([]string, error) {
+	cc, err := CreateCanal(ds)
+	if err != nil {
+		return nil, err
+	}
+	defer cc.Close()
+
 	sql := "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA"
 	res, err := cc.Execute(sql)
 	if err != nil {
@@ -25,7 +34,13 @@ func SelectSchemaNameList(cc *canal.Canal) ([]string, error) {
 	return list, nil
 }
 
-func SelectTableNameList(cc *canal.Canal, schemaName string) ([]string, error) {
+func SelectTableNameList(ds *po.SourceInfo, schemaName string) ([]string, error) {
+	cc, err := CreateCanal(ds)
+	if err != nil {
+		return nil, err
+	}
+	defer cc.Close()
+
 	sql := "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' "
 	res, err := cc.Execute(fmt.Sprintf(sql, schemaName))
 	if err != nil {
@@ -43,20 +58,26 @@ func SelectTableNameList(cc *canal.Canal, schemaName string) ([]string, error) {
 	return list, nil
 }
 
-func SelectTableInfo(cc *canal.Canal, schemaName, tableName string) (*vo.TableInfo, error) {
+func SelectTableInfo(ds *po.SourceInfo, schemaName, tableName string) (*bo.TableInfo, error) {
+	cc, err := CreateCanal(ds)
+	if err != nil {
+		return nil, err
+	}
+	defer cc.Close()
+
 	raw, err := cc.GetTable(schemaName, tableName)
 	if err != nil {
 		return nil, err
 	}
 
-	result := vo.TableInfo{
+	result := bo.TableInfo{
 		Schema: raw.Schema,
 		Name:   raw.Name,
 	}
 
-	columns := make([]*vo.TableColumnInfo, len(raw.Columns))
+	columns := make([]*bo.TableColumnInfo, len(raw.Columns))
 	for i, c := range raw.Columns {
-		columns[i] = &vo.TableColumnInfo{
+		columns[i] = &bo.TableColumnInfo{
 			Name:       strings.ToLower(c.Name),
 			Type:       c.Type,
 			Collation:  c.Collation,
@@ -80,4 +101,27 @@ func SelectTableInfo(cc *canal.Canal, schemaName, tableName string) (*vo.TableIn
 	result.Columns = columns
 
 	return &result, err
+}
+
+func CreateCanal(ds *po.SourceInfo) (*canal.Canal, error) {
+	cfg := canal.NewDefaultConfig()
+	cfg.Addr = fmt.Sprintf("%s:%d", ds.GetHost(), ds.GetPort())
+	cfg.User = ds.GetUsername()
+	cfg.Password = ds.GetPassword()
+	cfg.Flavor = ds.GetFlavor()
+	if ds.GetCharset() != "" {
+		cfg.Charset = ds.GetCharset()
+	}
+	if ds.GetSlaveID() != 0 {
+		cfg.ServerID = ds.GetSlaveID()
+	}
+	cfg.Dump.DiscardErr = false
+	cfg.Dump.ExecutionPath = ""
+
+	canal, err := canal.NewCanal(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return canal, nil
 }

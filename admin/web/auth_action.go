@@ -2,7 +2,8 @@ package web
 
 import (
 	"github.com/gin-gonic/gin"
-	"go-mysql-transfer/model"
+
+	"go-mysql-transfer/domain/vo"
 	"go-mysql-transfer/service"
 )
 
@@ -26,7 +27,7 @@ func (s *AuthAction) Ping(c *gin.Context) {
 }
 
 func (s *AuthAction) Login(c *gin.Context) {
-	var params model.LoginVO
+	var params vo.LoginVO
 	c.BindJSON(&params)
 
 	if params.Username == "" || params.Password == "" {
@@ -61,7 +62,7 @@ func (s *AuthAction) Authenticated(c *gin.Context) {
 	RespData(c, gin.H{
 		"username": session.Name,
 		"realName": session.Name,
-		"roles": []*model.RoleVO{&model.RoleVO{
+		"roles": []*vo.RoleVO{&vo.RoleVO{
 			RoleName: session.Role,
 			Value:    session.Role,
 		}},

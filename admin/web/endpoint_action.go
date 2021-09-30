@@ -6,7 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/juju/errors"
 
-	"go-mysql-transfer/model/po"
+	"go-mysql-transfer/domain/po"
+	"go-mysql-transfer/domain/vo"
 	"go-mysql-transfer/service"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
@@ -22,7 +23,7 @@ func initEndpointInfoAction(r *gin.Engine) {
 		service: service.GetEndpointInfoService(),
 	}
 	r.POST("endpoints", s.Insert)
-	r.POST("endpoints/test_link", s.TestLink)
+	r.POST("endpoints/test-link", s.TestLink)
 	r.PUT("endpoints", s.Update)
 	r.DELETE("endpoints/:id", s.DeleteBy)
 	r.GET("endpoints/:id", s.GetBy)
@@ -30,7 +31,7 @@ func initEndpointInfoAction(r *gin.Engine) {
 }
 
 func (s *EndpointInfoAction) Insert(c *gin.Context) {
-	vo := new(po.EndpointInfo)
+	vo := new(vo.EndpointInfoVO)
 	if err := c.BindJSON(vo); err != nil {
 		log.Errorf("新增失败: %s", errors.ErrorStack(err))
 		Err400(c, err.Error())
@@ -43,7 +44,7 @@ func (s *EndpointInfoAction) Insert(c *gin.Context) {
 		return
 	}
 
-	if err := s.service.Insert(vo); err != nil {
+	if err := s.service.Insert(vo.ToPO()); err != nil {
 		log.Errorf("新增失败: %s", errors.ErrorStack(err))
 		Err500(c, err.Error())
 		return
@@ -52,7 +53,7 @@ func (s *EndpointInfoAction) Insert(c *gin.Context) {
 }
 
 func (s *EndpointInfoAction) Update(c *gin.Context) {
-	vo := new(po.EndpointInfo)
+	vo := new(vo.EndpointInfoVO)
 	if err := c.BindJSON(vo); err != nil {
 		log.Errorf("更新失败: %s", errors.ErrorStack(err))
 		Err400(c, err.Error())
@@ -65,11 +66,12 @@ func (s *EndpointInfoAction) Update(c *gin.Context) {
 		return
 	}
 
-	if err := s.service.Update(vo); err != nil {
+	if err := s.service.Update(vo.ToPO()); err != nil {
 		log.Errorf("更新失败: %s", errors.ErrorStack(err))
 		Err500(c, err.Error())
 		return
 	}
+
 	RespOK(c)
 }
 
@@ -85,12 +87,16 @@ func (s *EndpointInfoAction) DeleteBy(c *gin.Context) {
 
 func (s *EndpointInfoAction) GetBy(c *gin.Context) {
 	id := stringutils.ToUint64Safe(c.Param("id"))
-	vo, err := s.service.Get(id)
+	po, err := s.service.Get(id)
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
 		Err500(c, err.Error())
 		return
 	}
+
+	vo := new(vo.EndpointInfoVO)
+	vo.FromPO(po)
+
 	RespData(c, vo)
 }
 
@@ -105,7 +111,14 @@ func (s *EndpointInfoAction) Select(c *gin.Context) {
 		return
 	}
 
-	RespData(c, list)
+	vos := make([]*vo.EndpointInfoVO, 0, len(list))
+	for _, l := range list {
+		vo := new(vo.EndpointInfoVO)
+		vo.FromPO(l)
+		vos = append(vos, vo)
+	}
+
+	RespData(c, vos)
 }
 
 func (s *EndpointInfoAction) TestLink(c *gin.Context) {
@@ -118,25 +131,23 @@ func (s *EndpointInfoAction) TestLink(c *gin.Context) {
 
 	if err := s.service.TestLink(vo); err != nil {
 		log.Errorf("链接测试失败: %s", errors.ErrorStack(err))
-		Err500(c, err.Error())
+		Err500(c, fmt.Sprintf("链接失败：%s", err.Error()))
 		return
 	}
 	RespOK(c)
 }
 
-func (s *EndpointInfoAction) check(vo *po.EndpointInfo, update bool) error {
-	if !sysutils.IsAddresses(vo.GetAddresses()) {
+func (s *EndpointInfoAction) check(vo *vo.EndpointInfoVO, update bool) error {
+	if !sysutils.IsAddresses(vo.Addresses) {
 		return errors.Errorf("地址格式不正确,如：127.0.0.1:27017;多个地址用英文逗号分割,如：127.0.0.1:27017,127.0.0.2:27017")
 	}
+
 	exist, _ := s.service.GetByName(vo.Name)
-	fmt.Println(stringutils.ToJsonIndent(exist))
 	if exist != nil && !update {
-		fmt.Println(111)
-		return errors.New(fmt.Sprintf("存在名称为[%s]的端点，请更换", vo.GetName()))
+		return errors.New(fmt.Sprintf("存在名称为[%s]的端点，请更换", vo.Name))
 	}
 	if exist != nil && update && exist.Id != vo.Id {
-		fmt.Println(222)
-		return errors.New(fmt.Sprintf("存在名称为[%s]的端点，请更换", vo.GetName()))
+		return errors.New(fmt.Sprintf("存在名称为[%s]的端点，请更换", vo.Name))
 	}
 	return nil
 }

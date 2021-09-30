@@ -2,28 +2,12 @@ package bolt
 
 import (
 	"fmt"
-	"github.com/juju/errors"
-	"go-mysql-transfer/config"
-	"go-mysql-transfer/model/po"
+
+	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/util/snowflake"
 	"go-mysql-transfer/util/stringutils"
 	"testing"
 )
-
-func before(t *testing.T) {
-	configFile := "D:\\newtransfers\\application.yml"
-	if err := config.Initialize(configFile); err != nil {
-		println(errors.ErrorStack(err))
-		return
-	}
-
-	err := Initialize(config.GetIns())
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	snowflake.Initialize(1)
-}
 
 func TestSourceInfoDao_Save(t *testing.T) {
 	before(t)
@@ -40,7 +24,7 @@ func TestSourceInfoDao_Save(t *testing.T) {
 		Flavor:   "mysql",
 	}
 
-	dao := new(SourceInfoDaoImpl)
+	dao := new(SourceInfoDao)
 
 	err := dao.Save(entity)
 	if err != nil {
@@ -50,7 +34,7 @@ func TestSourceInfoDao_Save(t *testing.T) {
 
 func TestInitData(t *testing.T) {
 	before(t)
-	dao := new(SourceInfoDaoImpl)
+	dao := new(SourceInfoDao)
 
 	for i := 0; i < 25; i++ {
 		id, _ := snowflake.NextId()
@@ -76,7 +60,7 @@ func TestInitData(t *testing.T) {
 func TestSourceInfoDao_Get(t *testing.T) {
 	before(t)
 
-	dao := new(SourceInfoDaoImpl)
+	dao := new(SourceInfoDao)
 
 	entity, err := dao.Get(368950241963016193)
 	if err != nil {

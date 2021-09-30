@@ -2,11 +2,12 @@ package datasource
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"go-mysql-transfer/model/po"
+	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
 )
@@ -16,19 +17,22 @@ func CreateConnection(ds *po.SourceInfo, scheme string) (*sql.DB, error) {
 	elements := make([]string, 0)
 	elements = append(elements, ds.GetUsername(), ":", ds.GetPassword(), "@tcp(", ds.GetHost(), ":", stringutils.ToString(ds.GetPort()), ")/")
 	elements = append(elements, scheme)
+	elements = append(elements, "?timeout=5s")
 	if ds.GetCharset() != "" {
-		elements = append(elements, "?charset=utf8")
+		charset := "&charset=" + ds.GetCharset()
+		elements = append(elements, charset)
 	}
-	db, err := sql.Open(ds.GetFlavor(), strings.Join(elements, ""))
+
+	dataSourceName := strings.Join(elements, "")
+	fmt.Println(dataSourceName)
+	db, err := sql.Open(ds.GetFlavor(), dataSourceName)
 	if err != nil {
 		return nil, err
 	}
 
 	err = db.Ping()
 	if err != nil {
-		if db != nil {
-			db.Close()
-		}
+		CloseConnection(db)
 		return nil, err
 	}
 

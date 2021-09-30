@@ -1,6 +1,6 @@
 syntax = "proto3";
 // 定义包名
-option go_package ="/model/po";
+option go_package ="/domain/po";
 
 // 定义'端点信息'结构
 message EndpointInfo {

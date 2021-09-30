@@ -5,8 +5,8 @@ import (
 
 	"go-mysql-transfer/dao"
 	"go-mysql-transfer/datasource"
-	"go-mysql-transfer/model/po"
-	"go-mysql-transfer/model/vo"
+	"go-mysql-transfer/domain/bo"
+	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/util/snowflake"
 )
 
@@ -45,13 +45,8 @@ func (s *SourceInfoService) SelectSchemaList(id uint64) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	cc, err := datasource.CreateCanal(ds)
-	if err != nil {
-		return nil, err
-	}
-	defer datasource.CloseCanal(cc)
 
-	ls, err := datasource.SelectSchemaNameList(cc)
+	ls, err := datasource.SelectSchemaNameList(ds)
 	if err != nil {
 		return nil, err
 	}
@@ -64,13 +59,8 @@ func (s *SourceInfoService) SelectTableList(id uint64, schemaName string) ([]str
 	if err != nil {
 		return nil, err
 	}
-	cc, err := datasource.CreateCanal(ds)
-	if err != nil {
-		return nil, err
-	}
-	defer datasource.CloseCanal(cc)
 
-	ls, err := datasource.SelectTableNameList(cc, schemaName)
+	ls, err := datasource.SelectTableNameList(ds, schemaName)
 	if err != nil {
 		return nil, err
 	}
@@ -78,18 +68,13 @@ func (s *SourceInfoService) SelectTableList(id uint64, schemaName string) ([]str
 	return ls, nil
 }
 
-func (s *SourceInfoService) SelectTableInfo(id uint64, schemaName, tableName string) (*vo.TableInfo, error) {
+func (s *SourceInfoService) SelectTableInfo(id uint64, schemaName, tableName string) (*bo.TableInfo, error) {
 	ds, err := s.dao.Get(id)
 	if err != nil {
 		return nil, err
 	}
-	cc, err := datasource.CreateCanal(ds)
-	if err != nil {
-		return nil, err
-	}
-	defer datasource.CloseCanal(cc)
 
-	result, err := datasource.SelectTableInfo(cc, schemaName, tableName)
+	result, err := datasource.SelectTableInfo(ds, schemaName, tableName)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +82,6 @@ func (s *SourceInfoService) SelectTableInfo(id uint64, schemaName, tableName str
 	return result, nil
 }
 
-func (s *SourceInfoService) TestLink(vo *po.SourceInfo) error {
-	return nil
-	//return mysql.TestConnection(vo.GetUsername(), vo.GetPassword(), vo.GetHost(), vo.GetPort())
+func (s *SourceInfoService) TestLink(ds *po.SourceInfo) error {
+	return datasource.TestConnection(ds, "mysql")
 }

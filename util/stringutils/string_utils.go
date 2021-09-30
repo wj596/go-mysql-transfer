@@ -30,7 +30,7 @@ import (
 	"github.com/satori/go.uuid"
 )
 
-// 产生UUID
+// UUID 产生UUID
 func UUID() string {
 	return strings.ReplaceAll(uuid.NewV4().String(), "-", "")
 }

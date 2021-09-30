@@ -38,7 +38,10 @@ func Initialize() error {
 		ruleDao:     dao.GetTransformRuleDao(),
 		sourceDao:   dao.GetSourceInfoDao(),
 		endpointDao: dao.GetEndpointInfoDao(),
+		dumpers:     make(map[uint64]*dumper),
 	}
+
+	_pipelineInfoService.Initialize()
 
 	return nil
 }

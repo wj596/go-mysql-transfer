@@ -1,6 +1,9 @@
 syntax = "proto3";
+
+package proto;
+
 // 定义包名
-option go_package ="/model/po";
+option go_package ="/domain/po";
 
 // 定义'数据源信息'结构
 message SourceInfo {
