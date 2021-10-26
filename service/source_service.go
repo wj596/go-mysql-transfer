@@ -1,7 +1,7 @@
 package service
 
 import (
-	"fmt"
+	"go-mysql-transfer/domain/vo"
 
 	"go-mysql-transfer/dao"
 	"go-mysql-transfer/datasource"
@@ -11,7 +11,7 @@ import (
 )
 
 type SourceInfoService struct {
-	dao dao.SourceInfoDao
+	dao *dao.SourceInfoDao
 }
 
 func (s *SourceInfoService) Insert(entity *po.SourceInfo) error {
@@ -20,7 +20,6 @@ func (s *SourceInfoService) Insert(entity *po.SourceInfo) error {
 }
 
 func (s *SourceInfoService) Update(entity *po.SourceInfo) error {
-	fmt.Println(entity.GetId())
 	return s.dao.Save(entity)
 }
 
@@ -36,8 +35,8 @@ func (s *SourceInfoService) GetByName(name string) (*po.SourceInfo, error) {
 	return s.dao.GetByName(name)
 }
 
-func (s *SourceInfoService) SelectList(name string, host string) ([]*po.SourceInfo, error) {
-	return s.dao.SelectList(name, host)
+func (s *SourceInfoService) SelectList(params *vo.SourceInfoParams) ([]*po.SourceInfo, error) {
+	return s.dao.SelectList(params)
 }
 
 func (s *SourceInfoService) SelectSchemaList(id uint64) ([]string, error) {
@@ -82,6 +81,6 @@ func (s *SourceInfoService) SelectTableInfo(id uint64, schemaName, tableName str
 	return result, nil
 }
 
-func (s *SourceInfoService) TestLink(ds *po.SourceInfo) error {
-	return datasource.TestConnection(ds, "mysql")
+func (s *SourceInfoService) TestConnect(ds *po.SourceInfo) error {
+	return datasource.TestConnect(ds)
 }

@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"go-mysql-transfer/domain/vo"
 
 	"go-mysql-transfer/dao"
 	"go-mysql-transfer/domain/po"
@@ -10,7 +11,7 @@ import (
 )
 
 type EndpointInfoService struct {
-	dao dao.EndpointInfoDao
+	dao *dao.EndpointInfoDao
 }
 
 func (s *EndpointInfoService) Insert(entity *po.EndpointInfo) error {
@@ -35,8 +36,8 @@ func (s *EndpointInfoService) GetByName(name string) (*po.EndpointInfo, error) {
 	return s.dao.GetByName(name)
 }
 
-func (s *EndpointInfoService) SelectList(name string, host string) ([]*po.EndpointInfo, error) {
-	return s.dao.SelectList(name, host)
+func (s *EndpointInfoService) SelectList(params *vo.EndpointInfoParams) ([]*po.EndpointInfo, error) {
+	return s.dao.SelectList(params)
 }
 
 func (s *EndpointInfoService) TestLink(info *po.EndpointInfo) error {

@@ -1,0 +1,20 @@
+syntax = "proto3";
+// 定义包名
+option go_package ="/domain/po";
+
+// 定义'管道信息'结构
+message PipelineInfo {
+  uint64  id =1;
+  uint32  status =7;
+  PosName string
+  PosIndex  uint32
+
+  string  name  =2;
+  uint64  sourceId =3;
+  uint64  endpointId =4;
+  string  createTime = 5;
+  string  updateTime = 6;
+
+  uint64  flushBulkSize =8;
+  uint32  flushBulkInterval =9;
+}

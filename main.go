@@ -19,18 +19,19 @@ package main
 
 import (
 	"fmt"
-	"go-mysql-transfer/config"
-	"go-mysql-transfer/dao"
-	"go-mysql-transfer/service"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/juju/errors"
+	canallog "github.com/siddontang/go-log/log"
 
-	"go-mysql-transfer/admin/web"
-	log2 "go-mysql-transfer/util/log"
+	"go-mysql-transfer/config"
+	"go-mysql-transfer/dao"
+	"go-mysql-transfer/service"
+	zap "go-mysql-transfer/util/log"
+	"go-mysql-transfer/web"
 )
 
 var (
@@ -52,10 +53,13 @@ func main() {
 	}
 
 	// 初始化Logger
-	if err := log2.Initialize(config.GetIns().GetLoggerConfig()); err != nil {
+	if err := zap.Initialize(config.GetIns().GetLoggerConfig()); err != nil {
 		println(errors.ErrorStack(err))
 		return
 	}
+
+	// 设置canal的Logger级别
+	canallog.SetLevel(canallog.LevelInfo)
 
 	// 初始化DAO层
 	if err := dao.Initialize(config.GetIns()); err != nil {

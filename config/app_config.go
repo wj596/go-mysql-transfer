@@ -19,13 +19,11 @@
 package config
 
 import (
+	"github.com/juju/errors"
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"path/filepath"
-	"runtime"
-
-	"github.com/juju/errors"
-	"gopkg.in/yaml.v2"
 
 	"go-mysql-transfer/util/fileutils"
 	"go-mysql-transfer/util/sysutils"
@@ -38,16 +36,22 @@ const (
 	_prometheusExporterPort = 9595
 	_webPort                = 8060
 	_rpcPort                = 7060
+
+	_batchBulkSize       = 100
+	_batchCoroutines     = 3
+	_streamBulkSize      = 100
+	_streamFlushInterval = 200
 )
 
 var _instance *AppConfig
 
 // AppConfig 应用配置
 type AppConfig struct {
-	DataDir           string `yaml:"data_dir"`
-	Maxprocs          int    `yaml:"maxprocs"` // 最大协程数，默认CPU核心数*2
-	BulkSize          int64  `yaml:"bulk_size"`
-	FlushBulkInterval int    `yaml:"flush_bulk_interval"`
+	DataDir             string `yaml:"data_dir"`
+	BatchCoroutines     int    `yaml:"batch_coroutines"`    // 批处理最大协程数，默认3
+	BatchBulkSize       int    `yaml:"batch_bulk_size"`     // 批处理每批提交条数，默认100
+	StreamBulkSize      int    `yaml:"stream_bulk_size"`    // 实时数据每批提交条数，默认100
+	StreamFlushInterval int    `yaml:"flush_bulk_interval"` // 实时数据刷新周期，单位毫秒，默认200毫秒
 
 	EnablePrometheusExporter bool `yaml:"enable_prometheus_exporter"` // 启用prometheus exporter，默认false
 	PrometheusExporterPort   int  `yaml:"prometheus_exporter_addr"`   // prometheus exporter端口
@@ -96,8 +100,17 @@ func checkConfig(c *AppConfig) error {
 	if c.RpcPort == 0 {
 		c.RpcPort = _rpcPort
 	}
-	if c.Maxprocs <= 0 {
-		c.Maxprocs = runtime.NumCPU() * 2
+	if c.BatchCoroutines <= 0 {
+		c.BatchCoroutines = _batchCoroutines
+	}
+	if c.BatchBulkSize <= 0 {
+		c.BatchBulkSize = _batchBulkSize
+	}
+	if c.StreamBulkSize <= 0 {
+		c.StreamBulkSize = _streamBulkSize
+	}
+	if c.StreamFlushInterval <= 0 {
+		c.StreamFlushInterval = _streamFlushInterval
 	}
 
 	// Logger
@@ -155,16 +168,20 @@ func (c *AppConfig) GetDataDir() string {
 	return c.DataDir
 }
 
-func (c *AppConfig) GetMaxprocs() int {
-	return c.Maxprocs
+func (c *AppConfig) GetBatchCoroutines() int {
+	return c.BatchCoroutines
 }
 
-func (c *AppConfig) GetBulkSize() int64 {
-	return c.BulkSize
+func (c *AppConfig) GetBatchBulkSize() int {
+	return c.BatchBulkSize
 }
 
-func (c *AppConfig) GetFlushBulkInterval() int {
-	return c.FlushBulkInterval
+func (c *AppConfig) GetStreamBulkSize() int {
+	return c.StreamBulkSize
+}
+
+func (c *AppConfig) GetStreamFlushInterval() int {
+	return c.StreamFlushInterval
 }
 
 func (c *AppConfig) IsEnablePrometheusExporter() bool {

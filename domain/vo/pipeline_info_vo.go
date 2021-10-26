@@ -31,8 +31,6 @@ func (s *PipelineInfoVO) ToPO() *po.PipelineInfo {
 		EndpointId:        s.EndpointId,
 		CreateTime:        s.CreateTime,
 		Status:            s.Status,
-		PosName:           s.PosName,
-		PosIndex:          s.PosIndex,
 		FlushBulkSize:     s.FlushBulkSize,
 		FlushBulkInterval: s.FlushBulkInterval,
 	}
@@ -47,8 +45,6 @@ func (s *PipelineInfoVO) FromPO(p *po.PipelineInfo) {
 	s.CreateTime = p.CreateTime
 	s.UpdateTime = p.UpdateTime
 	s.Status = p.Status
-	s.PosName = p.PosName
-	s.PosIndex = p.PosIndex
 	s.FlushBulkSize = p.FlushBulkSize
 	s.FlushBulkInterval = p.FlushBulkInterval
 }

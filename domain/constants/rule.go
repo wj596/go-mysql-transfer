@@ -17,11 +17,11 @@ const (
 )
 
 const (
-	RedisStructureString    = 1
-	RedisStructureHash      = 2
-	RedisStructureList      = 3
-	RedisStructureSet       = 4
-	RedisStructureSortedSet = 5
+	RedisStructureString    = 0
+	RedisStructureHash      = 1
+	RedisStructureList      = 2
+	RedisStructureSet       = 3
+	RedisStructureSortedSet = 4
 )
 
 const (

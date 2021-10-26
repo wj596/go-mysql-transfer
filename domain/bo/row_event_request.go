@@ -3,11 +3,11 @@ package bo
 import "sync"
 
 type RowEventRequest struct {
-	RuleKey   string
+	Context       *RuleContext
 	Action    string
 	Timestamp uint32
-	Covered   []interface{}
-	Row       []interface{}
+	PreData   []interface{} //变更之前的数据
+	Data      []interface{} //当前的数据
 }
 
 var rowEventRequestPool = sync.Pool{
@@ -21,10 +21,10 @@ func BorrowRowEventRequest() *RowEventRequest {
 }
 
 func ReleaseRowEventRequest(r *RowEventRequest) {
+	r.Context = nil
 	r.Action = ""
-	r.RuleKey = ""
 	r.Timestamp = 0
-	r.Covered = nil
-	r.Row = nil
+	r.PreData = nil
+	r.Data = nil
 	rowEventRequestPool.Put(r)
 }

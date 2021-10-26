@@ -1,34 +1,51 @@
 package endpoint
 
 import (
-	"go-mysql-transfer/domain/constants"
-	"strings"
+	"github.com/yuin/gopher-lua"
 
 	"go-mysql-transfer/domain/bo"
+	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
+	"go-mysql-transfer/endpoint/redis"
 )
 
-type Endpoint interface {
+type IEndpoint interface {
 	Connect() error
 	Ping() error
 	Close()
-
-	Consume([]*bo.RowEventRequest) error
-	FullSync([]interface{}, *po.TransformRule) (int64, error)
 }
 
-func NewEndpoint(info *po.EndpointInfo) Endpoint {
+type IStreamEndpoint interface {
+	Connect() error
+	Ping() error
+	Close()
+	Stream(requests []*bo.RowEventRequest) error
+}
+
+type IBatchEndpoint interface {
+	Connect() error
+	Ping() error
+	Close()
+	Batch(requests []*bo.RowEventRequest, ctx *bo.RuleContext, lvm *lua.LState) (int64, error)
+}
+
+func NewEndpoint(info *po.EndpointInfo) IEndpoint {
 	if info.Type == constants.EndpointTypeRedis {
-		return newRedisEndpoint(info)
+		return redis.NewEndpoint(info)
 	}
 	return nil
 }
 
-func isCluster(c *po.EndpointInfo) bool {
-	addresses := strings.Split(c.Addresses, ",")
-	return len(addresses) > 1
+func NewStreamEndpoint(info *po.EndpointInfo) IStreamEndpoint {
+	if info.Type == constants.EndpointTypeRedis {
+		return redis.NewStreamEndpoint(info)
+	}
+	return nil
 }
 
-func getAddressList(c *po.EndpointInfo) []string {
-	return strings.Split(c.Addresses, ",")
+func NewBatchEndpoint(info *po.EndpointInfo) IBatchEndpoint {
+	if info.Type == constants.EndpointTypeRedis {
+		return redis.NewBatchEndpoint(info)
+	}
+	return nil
 }

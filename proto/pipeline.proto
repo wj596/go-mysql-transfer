@@ -11,8 +11,8 @@ message PipelineInfo {
   string  createTime = 5;
   string  updateTime = 6;
   uint32  status =7;
-  string  posName = 8;
-  uint32  posIndex =9;
-  uint64  flushBulkSize =10;
-  uint32  flushBulkInterval =11;
+  uint64  streamBulkSize =8;
+  uint32  streamFlushInterval =9;
+  uint32  batchCoroutines =10;
+  uint32  batchBulkSize =11;
 }

@@ -6,14 +6,15 @@ import (
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/siddontang/go-mysql/canal"
 
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
 )
 
-func CreateConnection(ds *po.SourceInfo, scheme string) (*sql.DB, error) {
-	log.Infof("build MySQL connection,user[%s]、host[%s]、port[%d]", ds.GetUsername(), ds.GetHost(), ds.GetPort())
+func TestConnect(ds *po.SourceInfo) error {
+	scheme := "mysql"
 	elements := make([]string, 0)
 	elements = append(elements, ds.GetUsername(), ":", ds.GetPassword(), "@tcp(", ds.GetHost(), ":", stringutils.ToString(ds.GetPort()), ")/")
 	elements = append(elements, scheme)
@@ -22,32 +23,43 @@ func CreateConnection(ds *po.SourceInfo, scheme string) (*sql.DB, error) {
 		charset := "&charset=" + ds.GetCharset()
 		elements = append(elements, charset)
 	}
-
 	dataSourceName := strings.Join(elements, "")
-	fmt.Println(dataSourceName)
 	db, err := sql.Open(ds.GetFlavor(), dataSourceName)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	defer db.Close()
 
-	err = db.Ping()
+	log.Infof("测试数据库连接：user[%s]、host[%s]、port[%d]", ds.GetUsername(), ds.GetHost(), ds.GetPort())
+
+	return db.Ping()
+}
+
+func CreateConnection(ds *po.SourceInfo) (*canal.Canal, error) {
+	cfg := canal.NewDefaultConfig()
+	cfg.Addr = fmt.Sprintf("%s:%d", ds.GetHost(), ds.GetPort())
+	cfg.User = ds.GetUsername()
+	cfg.Password = ds.GetPassword()
+	cfg.Flavor = ds.GetFlavor()
+	if ds.GetCharset() != "" {
+		cfg.Charset = ds.GetCharset()
+	}
+	//if ds.GetSlaveID() != 0 {
+		//cfg.ServerID = ds.GetSlaveID()
+	//}
+	cfg.Dump.DiscardErr = false
+	cfg.Dump.ExecutionPath = ""
+
+	canal, err := canal.NewCanal(cfg)
 	if err != nil {
-		CloseConnection(db)
 		return nil, err
 	}
 
-	return db, nil
+	return canal, nil
 }
 
-func CloseConnection(conn *sql.DB) error {
-	if conn != nil {
-		return conn.Close()
+func CloseConnection(canal *canal.Canal) {
+	if canal != nil {
+		canal.Close()
 	}
-	return nil
-}
-
-func TestConnection(ds *po.SourceInfo, scheme string) error {
-	conn, err := CreateConnection(ds, scheme)
-	defer CloseConnection(conn)
-	return err
 }

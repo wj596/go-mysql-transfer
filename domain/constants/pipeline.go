@@ -2,15 +2,15 @@ package constants
 
 // PipelineInfo 状态
 const (
-	PipelineInfoStatusInitialized = 0 //未启动
-	PipelineInfoStatusStarted     = 1 //已启动
-	PipelineInfoStatusRunning     = 2 //运行中
-	PipelineInfoStatusPause       = 3 //暂停
-	PipelineInfoStatusFullSync    = 5 //全量同步
-	PipelineInfoStatusFault       = 9 //异常
+	PipelineInfoStatusEnable  = 0 //启用
+	PipelineInfoStatusDisable = 9 //停用
 )
 
 const (
-	FlushBulkInterval = 200
-	FlushBulkSize     = 100
+	PipelineRunStatusRunning  = 1 //运行中
+	PipelineRunStatusPause    = 2 //暂停
+	PipelineRunStatusFault    = 3 //故障
+	PipelineRunStatusBatching = 4 //全量同步中
+	PipelineRunStatusBatchEnd = 5 //全量同步结束
+	PipelineRunStatusCease    = 9 //停止
 )

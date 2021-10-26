@@ -10,6 +10,7 @@ var (
 	_sourceInfoService    *SourceInfoService
 	_endpointInfoService  *EndpointInfoService
 	_transformRuleService *TransformRuleService
+	_streamStateService   *StreamStateService
 	_pipelineInfoService  *PipelineInfoService
 )
 
@@ -33,15 +34,17 @@ func Initialize() error {
 		pipelineDao: dao.GetPipelineInfoDao(),
 	}
 
+	_streamStateService = &StreamStateService{
+		dao: dao.GetStreamStateDao(),
+	}
+
 	_pipelineInfoService = &PipelineInfoService{
 		dao:         dao.GetPipelineInfoDao(),
 		ruleDao:     dao.GetTransformRuleDao(),
 		sourceDao:   dao.GetSourceInfoDao(),
 		endpointDao: dao.GetEndpointInfoDao(),
-		dumpers:     make(map[uint64]*dumper),
 	}
-
-	_pipelineInfoService.Initialize()
+	_pipelineInfoService.InitStartStreams()
 
 	return nil
 }
@@ -64,4 +67,8 @@ func GetTransformRuleService() *TransformRuleService {
 
 func GetPipelineInfoService() *PipelineInfoService {
 	return _pipelineInfoService
+}
+
+func GetStreamStateService() *StreamStateService {
+	return _streamStateService
 }

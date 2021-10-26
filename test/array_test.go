@@ -2,7 +2,6 @@ package test
 
 import (
 	"fmt"
-	"go-mysql-transfer/domain/po"
 	"testing"
 )
 
@@ -13,7 +12,13 @@ func TestIndex(t *testing.T) {
 	//
 	//fmt.Println(rules[3])
 
-	var entity po.EndpointInfo
-	fmt.Println(entity)
-
+	var totalRow int64 = 100
+	var batch int64
+	var size int64 = 80
+	if totalRow%size == 0 {
+		batch = totalRow / size
+	} else {
+		batch = (totalRow / size) + 1
+	}
+	fmt.Println(batch)
 }
