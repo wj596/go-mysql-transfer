@@ -160,8 +160,15 @@ func (s *RabbitEndpoint) Stock(rows []*model.RowRequest) int64 {
 }
 
 func (s *RabbitEndpoint) doLuaConsume(req *model.RowRequest, rule *global.Rule) error {
+	var err error
+	var ls []*model.MQRespond
 	kvm := rowMap(req, rule, true)
-	ls, err := luaengine.DoMQOps(kvm, req.Action, rule)
+	if req.Action == canal.UpdateAction {
+		previous := oldRowMap(req, rule, true)
+		ls, err = luaengine.DoMQOps(kvm, previous, req.Action, rule)
+	} else {
+		ls, err = luaengine.DoMQOps(kvm, nil, req.Action, rule)
+	}
 	if err != nil {
 		log.Println("Lua 脚本执行失败!!! ,详情请参见日志")
 		return errors.Errorf("lua 脚本执行失败 : %s ", err)

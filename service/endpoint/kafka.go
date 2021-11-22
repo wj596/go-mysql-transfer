@@ -176,8 +176,15 @@ func (s *KafkaEndpoint) Stock(rows []*model.RowRequest) int64 {
 }
 
 func (s *KafkaEndpoint) buildMessages(row *model.RowRequest, rule *global.Rule) ([]*sarama.ProducerMessage, error) {
+	var err error
+	var ls []*model.MQRespond
 	kvm := rowMap(row, rule, true)
-	ls, err := luaengine.DoMQOps(kvm, row.Action, rule)
+	if row.Action == canal.UpdateAction {
+		previous := oldRowMap(row, rule, true)
+		ls, err = luaengine.DoMQOps(kvm, previous, row.Action, rule)
+	} else {
+		ls, err = luaengine.DoMQOps(kvm, nil, row.Action, rule)
+	}
 	if err != nil {
 		return nil, errors.Errorf("lua 脚本执行失败 : %s ", err)
 	}
