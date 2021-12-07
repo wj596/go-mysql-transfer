@@ -19,7 +19,7 @@ package luaengine
 
 import (
 	"github.com/siddontang/go-mysql/canal"
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 
 	"go-mysql-transfer/global"
 	"go-mysql-transfer/model"
@@ -54,12 +54,22 @@ var _redisModuleApi = map[string]lua.LGFunction{
 
 	"ZADD": redisZAdd,
 	"ZREM": redisZRem,
+
+	"EXPIRE": redisExpire,
 }
 
 func rawOldRow(L *lua.LState) int {
 	row := L.GetGlobal(_globalOLDROW)
 	L.Push(row)
 	return 1
+}
+
+func redisExpire(L *lua.LState) int {
+	key := L.CheckString(1)
+	val := L.CheckAny(2)
+	ret := L.GetGlobal(_globalRET)
+	L.SetTable(ret, lua.LString("expire_0_"+key), val)
+	return 0
 }
 
 func redisSet(L *lua.LState) int {
@@ -223,6 +233,12 @@ func DoRedisOps(input map[string]interface{}, previous map[string]interface{}, a
 
 		ls = append(ls, resp)
 	})
+
+	var lsLen = len(ls)
+	if lsLen > 1 && ls[0].Action == "expire" {
+		// "expire" it will not work when the key not exist, swap it
+		ls[0], ls[lsLen-1] = ls[lsLen-1], ls[0]
+	}
 
 	return ls, nil
 }

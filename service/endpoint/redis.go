@@ -22,6 +22,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/pingcap/errors"
@@ -264,6 +265,12 @@ func (s *RedisEndpoint) preparePipe(resp *model.RedisRespond, pipe redis.Cmdable
 		} else {
 			val := redis.Z{Score: resp.Score, Member: resp.Val}
 			pipe.ZAdd(resp.Key, val)
+		}
+	default:
+		if resp.Action == "expire" {
+			vv, _ := resp.Val.(float64)
+			var s int64 = int64(vv) * 1000000000 //trans to ns
+			pipe.Expire(resp.Key, time.Duration(s))
 		}
 	}
 }
