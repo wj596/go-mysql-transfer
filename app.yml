@@ -50,8 +50,8 @@ redis_addrs: 127.0.0.1:6379 #redis地址，多个用逗号分隔
 #elasticsearch连接配置
 #es_addrs: 127.0.0.1:9200 #连接地址，多个用逗号分隔
 #es_version: 7 # Elasticsearch版本，支持6和7、默认为7
-#es_password:  # 用户名
-#es_version:  # 密码
+#es_user:  # 用户名
+#es_password:  # 密码
 
 #rocketmq连接配置
 #rocketmq_name_servers: 127.0.0.1:9876 #rocketmq命名服务地址，多个用逗号分隔
