@@ -1,11 +1,31 @@
+/*
+ * Copyright 2021-2022 the original author(https://github.com/wj596)
+ *
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * </p>
+ */
+
 package service
 
 import (
-	"fmt"
-	"go-mysql-transfer/domain/vo"
+	"time"
 
 	"go-mysql-transfer/dao"
+	"go-mysql-transfer/domain/bo"
+	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
+	"go-mysql-transfer/domain/vo"
 	"go-mysql-transfer/endpoint"
 	"go-mysql-transfer/util/snowflake"
 )
@@ -15,17 +35,51 @@ type EndpointInfoService struct {
 }
 
 func (s *EndpointInfoService) Insert(entity *po.EndpointInfo) error {
-	entity.Id, _ = snowflake.NextId()
+	id, err := snowflake.NextId()
+	if err != nil {
+		return err
+	}
+	entity.Id = id
+
+	if IsLeader() {
+		err := s.dao.SyncInsert(entity)
+		if err == nil {
+			s.sendSyncEvent(entity.Id, 0)
+		}
+		return err
+	}
 	return s.dao.Save(entity)
 }
 
 func (s *EndpointInfoService) Update(entity *po.EndpointInfo) error {
-	fmt.Println(entity.GetId())
+	if IsLeader() {
+		v, err := s.dao.SyncUpdate(entity)
+		if err == nil {
+			s.sendSyncEvent(entity.Id, v)
+		}
+		return err
+	}
 	return s.dao.Save(entity)
 }
 
 func (s *EndpointInfoService) Delete(id uint64) error {
+	if IsLeader() {
+		err := s.dao.SyncDelete(id)
+		if err == nil {
+			s.sendSyncEvent(id, -1)
+		}
+		return err
+	}
 	return s.dao.Delete(id)
+}
+
+func (s *EndpointInfoService) sendSyncEvent(id uint64, dataVersion int32) {
+	_leaderService.sendEvent(&bo.SyncEvent{
+		MetadataId:   id,
+		MetadataType: constants.MetadataTypeEndpoint,
+		DataVersion:  dataVersion,
+		Timestamp:    time.Now().Unix(),
+	})
 }
 
 func (s *EndpointInfoService) Get(id uint64) (*po.EndpointInfo, error) {

@@ -1,3 +1,21 @@
+/*
+ * Copyright 2021-2022 the original author(https://github.com/wj596)
+ *
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * </p>
+ */
+
 package service
 
 import (
@@ -16,12 +34,14 @@ import (
 	"go-mysql-transfer/domain/bo"
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
-	"go-mysql-transfer/domain/vo"
 	"go-mysql-transfer/endpoint"
 	"go-mysql-transfer/util/log"
 )
 
-const _endpointMonitorInterval = 1
+const (
+	_streamMonitorInterval = 1 //秒
+	_stateFlushInterval    = 3 //秒
+)
 
 var (
 	_streams       = make(map[uint64]*StreamService)
@@ -32,7 +52,7 @@ type StreamService struct {
 	wg                        sync.WaitGroup
 	lock                      sync.Mutex
 	endpointMonitorStopSignal chan struct{}
-	runtime                   *bo.PipelineRunState
+	runtime                   *bo.PipelineRuntime
 
 	pipeline     *po.PipelineInfo
 	ruleContexts map[string]*bo.RuleContext
@@ -49,23 +69,9 @@ type StreamService struct {
 	dumperEnable  *atomic.Bool
 }
 
-func createStreamService(pipeline *po.PipelineInfo, runtime *bo.PipelineRunState) (*StreamService, error) {
+func createStreamService(sourceInfo *po.SourceInfo, endpointInfo *po.EndpointInfo, pipeline *po.PipelineInfo, runtime *bo.PipelineRuntime) (*StreamService, error) {
 	_lockOfStreams.Lock()
 	defer _lockOfStreams.Unlock()
-
-	sourceInfo, err := _sourceInfoService.Get(pipeline.SourceId)
-	if err != nil {
-		return nil, err
-	}
-
-	var endpointInfo *po.EndpointInfo
-	endpointInfo, err = _endpointInfoService.Get(pipeline.EndpointId)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Infof("创建[%s]StreamService,SourceInfo: Addr[%s]、User[%s]、Charset[%s]、Flavor[%s]、ServerID[%d]", pipeline.Name, fmt.Sprintf("%s:%d", sourceInfo.Host, sourceInfo.Port), sourceInfo.Username, sourceInfo.Charset, sourceInfo.Flavor, sourceInfo.SlaveID)
-	log.Infof("创建[%s]StreamService,EndpointInfo: Type[%s]、Addr[%s]、User[%s]", pipeline.Name, constants.GetEndpointTypeName(endpointInfo.GetType()), endpointInfo.GetAddresses(), endpointInfo.GetUsername())
 
 	canalConfig := canal.NewDefaultConfig()
 	canalConfig.Addr = fmt.Sprintf("%s:%d", sourceInfo.Host, sourceInfo.Port)
@@ -78,23 +84,20 @@ func createStreamService(pipeline *po.PipelineInfo, runtime *bo.PipelineRunState
 	canalConfig.Dump.ExecutionPath = ""
 	canalConfig.Dump.SkipMasterData = false
 
-	var rules []*po.TransformRule
-	rules, err = _transformRuleService.SelectList(vo.TransformRuleParams{PipelineId: pipeline.Id})
-	for _, rule := range rules {
+	for _, rule := range pipeline.Rules {
 		canalConfig.IncludeTableRegex = append(canalConfig.IncludeTableRegex, rule.Schema+"\\."+rule.Table)
 	}
 
-	var conn *canal.Canal
-	conn, err = datasource.CreateConnection(sourceInfo)
+	conn, err := datasource.CreateConnection(sourceInfo)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 
 	schemas := make(map[string]bool)
-	tables := make([]string, 0, len(rules))
-	ruleContexts := make(map[string]*bo.RuleContext, len(rules))
-	for _, rule := range rules {
+	tables := make([]string, 0, len(pipeline.Rules))
+	ruleContexts := make(map[string]*bo.RuleContext, len(pipeline.Rules))
+	for _, rule := range pipeline.Rules {
 		var tableInfo *schema.Table
 		tableInfo, err = conn.GetTable(rule.Schema, rule.Table)
 		if err != nil {
@@ -151,15 +154,15 @@ func getStreamService(pipelineId uint64) (*StreamService, bool) {
 	return ser, true
 }
 
-func closeStreamService(serv *StreamService, cause string) {
+func streamServiceClose(serv *StreamService) {
 	_lockOfStreams.Lock()
 	defer _lockOfStreams.Unlock()
 
 	serv.endpointMonitorStopSignal <- struct{}{} //关闭客户端监听
 	serv.endpointEnable.Store(false)             //设置客户端不可用状态
-	serv.endpointEnable.Store(false)             //设置客户端不可用状态
-	serv.endpoint.Close()                        //关闭客户端
-	serv.endpoint = nil                          //help GC
+
+	serv.endpoint.Close() //关闭客户端
+	serv.endpoint = nil   //help GC
 
 	serv.dumper.Close() //关闭dumper
 	serv.wg.Wait()
@@ -171,15 +174,46 @@ func closeStreamService(serv *StreamService, cause string) {
 		rc.CloseLuaVM()
 	}
 
-	serv.runtime.SetStatusCease(cause)
-	_streamStateService.SaveCeaseStatus(serv.getPipelineId(), serv.runtime)
+	serv.handler.stop() //停止handler
+	serv.handler = nil  //help GC
+
+	pipelineId := serv.pipeline.Id
+	pipelineName := serv.pipeline.Name
+	_stateService.updateStateByClose(pipelineId, serv.runtime)
+	delete(_streams, pipelineId)
+	serv = nil //help GC
+	log.Infof("删除StreamService[%s]", pipelineName)
+}
+
+func streamServicePanic(serv *StreamService, cause string) {
+	_lockOfStreams.Lock()
+	defer _lockOfStreams.Unlock()
+
+	serv.endpointMonitorStopSignal <- struct{}{} //关闭客户端监听
+	serv.endpointEnable.Store(false)             //设置客户端不可用状态
+
+	serv.endpoint.Close() //关闭客户端
+	serv.endpoint = nil   //help GC
+
+	serv.dumper.Close() //关闭dumper
+	serv.wg.Wait()
+	serv.dumperEnable.Store(false)
+	serv.dumper = nil //help GC
+
+	// 关闭所有Lua VM
+	for _, rc := range serv.ruleContexts {
+		rc.CloseLuaVM()
+	}
 
 	serv.handler.stop() //停止handler
 	serv.handler = nil  //help GC
 
-	log.Infof("关闭[%s]StreamService", serv.getPipelineName())
-	delete(_streams, serv.getPipelineId())
+	pipeline := serv.pipeline
+	_stateService.updateStateByPanic(pipeline.Id, serv.runtime, cause)
+	delete(_streams, pipeline.Id)
 	serv = nil //help GC
+	log.Infof("删除StreamService[%s]", pipeline.Name)
+	_alarmService.panicAlarm(pipeline, cause) //告警
 }
 
 func (s *StreamService) startup() error {
@@ -191,9 +225,6 @@ func (s *StreamService) startup() error {
 		return err
 	}
 	s.endpointEnable.Store(true)
-
-	// 获取Position
-	position := _streamStateService.GetPosition(s.getPipelineId())
 
 	// 创建Canal
 	dumper, err := canal.NewCanal(s.dumperConfig)
@@ -212,14 +243,13 @@ func (s *StreamService) startup() error {
 	dumper.SetEventHandler(handler)
 	s.handler = handler
 	s.dumper = dumper
+	position := _positionService.get(s.pipeline.Id)
 	err = s.runDumper(position)
 	if err != nil {
 		return err
 	}
-	s.runtime.SetPosition(position)
-	s.runtime.InitStartTime()
-	s.startEndpointMonitor()
 
+	s.startStreamMonitor()
 	return nil
 }
 
@@ -228,14 +258,11 @@ func (s *StreamService) runDumper(current mysql.Position) error {
 	s.dumperEnable.Store(true)
 	s.wg.Add(1)
 	go func(current mysql.Position) {
-		log.Infof("从Position[%s %d]启动[%s]Dumper", current.Name, current.Pos, s.pipeline.Name)
+		log.Infof("StreamService[%s]从Position[%s %d]启动Dumper", s.pipeline.Name, current.Name, current.Pos)
 		if err := s.dumper.RunFrom(current); err != nil {
-			msg := fmt.Sprintf("[%s] Dumper启动失败[%s]", s.pipeline.Name, err.Error())
-			log.Info(msg)
-			s.runtime.SetStatusFault(msg)
 			s.handler.stop()
 		}
-		log.Infof("[%s] Dumper已销毁", s.pipeline.Name)
+		log.Infof("StreamService[%s]销毁Dumper", s.pipeline.Name)
 		s.dumperEnable.Store(false)
 		s.dumper = nil
 		s.wg.Done()
@@ -243,10 +270,10 @@ func (s *StreamService) runDumper(current mysql.Position) error {
 
 	time.Sleep(1 * time.Second) //canal未提供回调，停留一秒，确保RunFrom启动成功
 	if !s.dumperEnable.Load() {
-		return errors.New("启动[%s]Dumper失败")
+		return errors.Errorf("StreamService[%s]启动Dumper失败", s.pipeline.Name)
 	}
-	log.Infof("[%s] Dumper启动成功", s.pipeline.Name)
-	s.runtime.SetStatusRunning() //设置为正常状态
+	log.Infof("StreamService[%s]启动Dumper成功", s.pipeline.Name)
+	_stateService.updateStateByRunning(s.pipeline.Id, s.runtime)
 	return nil
 }
 
@@ -269,8 +296,9 @@ func (s *StreamService) endpointFault(cause string) {
 	s.handler.stop() //停止handler
 	s.handler = nil  //help GC
 
-	s.runtime.SetStatusFault(cause)
-	log.Infof("[%s] StreamService客户端故障", s.getPipelineName())
+	s.runtime.SetFaultStatus(cause)
+	_alarmService.faultAlarm(s.pipeline, cause) //告警
+	log.Infof("StreamService[%s]客户端故障[%s]", s.pipeline.Name, cause)
 }
 
 // 客户端恢复
@@ -279,10 +307,9 @@ func (s *StreamService) endpointResume() error {
 	defer s.lock.Unlock()
 
 	if s.runtime.IsRunning() || nil != s.dumper {
-		return errors.New("StreamService已启动")
+		return errors.Errorf("StreamService[%s]已启动", s.pipeline.Name)
 	}
 
-	position := _streamStateService.GetPosition(s.getPipelineId())
 	dumper, err := canal.NewCanal(s.dumperConfig)
 	if err != nil {
 		return err
@@ -297,50 +324,49 @@ func (s *StreamService) endpointResume() error {
 	dumper.SetEventHandler(handler)
 	s.handler = handler
 	s.dumper = dumper
+	position := _positionService.get(s.pipeline.Id)
 	err = s.runDumper(position)
-	log.Infof("[%s] StreamService恢复运行", s.pipeline.Name)
+	log.Infof("StreamService[%s]恢复运行", s.pipeline.Name)
 	return err
 }
 
-func (s *StreamService) startEndpointMonitor() {
+func (s *StreamService) startStreamMonitor() {
 	go func() {
-		log.Infof("[%s] 启动客户端监控", s.getPipelineName())
-		ticker := time.NewTicker(_endpointMonitorInterval * time.Second)
+		log.Infof("StreamService[%s]启动客户端监控", s.pipeline.Name)
+		ticker := time.NewTicker(_streamMonitorInterval * time.Second)
 		defer ticker.Stop()
+		var err error
+		lastStateSaveTime := time.Now()
 		for {
 			select {
 			case <-ticker.C:
-				if !s.isEndpointEnable() { //客户端不可用
-					err := s.endpoint.Ping() //ping客户端
-					if err == nil {          //ping通
+				now := time.Now()
+				if now.Sub(lastStateSaveTime) > _stateFlushInterval*time.Second {
+					lastStateSaveTime = now
+					_stateService.updateState(s.pipeline.Id, s.runtime)
+				}
+
+				if !s.endpointEnable.Load() { //客户端不可用
+					err = s.endpoint.Ping() //ping客户端
+					if err == nil {         //ping通
 						s.endpointEnable.Store(true) //客户端恢复
 						if constants.EndpointTypeRabbitMQ == s.endpointType {
 							s.endpoint.Connect()
 						}
 						err = s.endpointResume() //客户端恢复
 						if err != nil {
-							log.Errorf("[%s] StreamService恢复运行失败[%s]", s.pipeline.Name, err.Error())
+							log.Errorf("StreamService[%s]恢复运行失败[%s]", s.pipeline.Name, err.Error())
 						}
 					} else {
-						log.Errorf("[%s] Ping客户端错误[%s]", s.pipeline.Name, err.Error())
+						log.Errorf("StreamService[%s]Ping客户端错误[%s]", s.pipeline.Name, err.Error())
 					}
 				}
 			case <-s.endpointMonitorStopSignal:
+				log.Infof("StreamService[%s]关闭客户端监控", s.pipeline.Name)
 				return
 			}
 		}
 	}()
-}
-
-func (s *StreamService) addHandleCount(action string, n int) {
-	switch action {
-	case canal.InsertAction:
-		s.runtime.AddInsertCount(n)
-	case canal.UpdateAction:
-		s.runtime.AddUpdateCount(n)
-	case canal.DeleteAction:
-		s.runtime.AddDeleteCount(n)
-	}
 }
 
 func (s *StreamService) getRuleContext(key string) (*bo.RuleContext, bool) {
@@ -350,12 +376,4 @@ func (s *StreamService) getRuleContext(key string) (*bo.RuleContext, bool) {
 
 func (s *StreamService) isEndpointEnable() bool {
 	return s.endpointEnable.Load()
-}
-
-func (s *StreamService) getPipelineName() string {
-	return s.pipeline.Name
-}
-
-func (s *StreamService) getPipelineId() uint64 {
-	return s.pipeline.Id
 }

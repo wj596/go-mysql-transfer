@@ -2,17 +2,81 @@ syntax = "proto3";
 // 定义包名
 option go_package ="/domain/po";
 
+// 定义'ES索引映射'结构
+message EsIndexMapping {
+  string column = 1; // 数据库列名称
+  string esField = 2;    // 映射后的ES字段名称
+  string esType = 3;    // ES字段类型
+  string esAnalyzer = 4;// ES分词器
+}
+
+// 定义'转换规则'结构
+message Rule {
+  int32 type = 1;  //0规则 1脚本
+  int32 receiveType = 2;//0:insert&update&delete  1:insert&update 2:insert&delete 3:insert
+  // ===================== read =============================
+  string schema = 3;
+  string table = 4;
+  int32 columnNameFormatter = 5;                           //列名转换格式 0:列名称转为小写 1:列名称转为大写 2:列名称下划线转驼峰
+  repeated string excludeColumnList = 6;          // 排除掉的列
+  map<string, string> columnNameMapping = 7;  // 列名称映射
+  map<string, string>   additionalColumnValueMapping = 8;  // 附加的字段和值
+  int32 dataEncoder = 9;                  //数据编码类型，0: json、 1:表达式
+  string dataExpression = 10;               //数据expression,{id}表示字段id的值、{name}表示字段name的值
+  string dateFormatter = 11; //date类型格式化， 不填写默认2006-01-02
+  string datetimeFormatter = 12; //datetime、timestamp类型格式化，不填写默认RFC3339(2006-01-02T15:04:05Z07:00)
+  bool  reserveCoveredData = 13;   // 保留update之前的数据
+  string orderColumn = 14;                                 // 排序列
+  // ===================== write =============================
+  // redis
+  int32 redisStructure = 15;          //对应redis的5种数据类型 1:String、2:Hash(字典) 、3:List(列表) 、4:Set(集合)、5:Sorted Set(有序集合)
+  string redisKeyPrefix = 16;     //key的前缀
+  int32 redisKeyBuilder = 17;      //key生成方式，0:使用列值(默认使用主键)、1:表达式、2固定值
+  string redisKeyColumn = 18;          //key生成方式，使用列值，默认使用主键
+  string redisKeyExpression = 19;        // key生成方式，格式化,如{id}-{name}；{id}表示字段id的值、{name}表示字段name的值
+  string redisKeyFixValue = 20;         // key固定值
+  string redisHashFieldPrefix = 21;      // hash的field前缀，仅redis_structure为hash时起作用
+  string redisHashFieldColumn = 22;      // 使用哪个列的值作为hash的field，仅redis_structure为hash时起作用
+  string redisSortedSetScoreColumn = 23; // Sorted Set(有序集合)的Score
+
+  // mongodbRule
+  string mongodbDatabase = 24; //mongodb database 不能为空
+  string mongodbCollection = 25; //mongodb collection，可以为空，默认使用表(Table)名称
+
+  // elasticsearch
+  int32 esIndexBuildType = 26;           //Index名称创建方式，0使用已经存在的、1自动创建
+  string esIndexName = 27;           //Index名称,可以为空，默认使用表(Table)名称
+  //string esType          =31;         //es6.x以后一个Index只能拥有一个Type,可以为空，默认使用_doc; es7.x版本此属性无效
+  repeated EsIndexMapping esIndexMappings =  28; //Elasticsearch mappings映射关系,可以为空，为空时根据数据类型自己推导
+
+  // Rocketmq Kafka Rabbitmq
+  string mqTopic = 29; // topic名称，可以为空，为空时使用表名称
+  // HTTP 参数名称
+  string    httpParameterName = 30; // http参数名称
+  bool httpReserveRawData = 31; // 保留update之前的数据
+
+  // =============================  LUA  ==============================================
+  string    LuaScript = 32;  //lua 脚本
+}
+
 // 定义'管道信息'结构
 message PipelineInfo {
   uint64  id =1;
   string  name  =2;
   uint64  sourceId =3;
   uint64  endpointId =4;
-  string  createTime = 5;
-  string  updateTime = 6;
-  uint32  status =7;
-  uint64  streamBulkSize =8;
-  uint32  streamFlushInterval =9;
-  uint32  batchCoroutines =10;
-  uint32  batchBulkSize =11;
+  uint32  endpointType =5;
+  string  createTime = 6;
+  string  updateTime = 7;
+  uint32  status =8;
+  uint64  streamBulkSize =9;
+  uint32  streamFlushInterval =10;
+  uint32  batchCoroutines =11;
+  uint32  batchBulkSize =12;
+  string  alarmMailList = 13;
+  string  alarmWebhook = 14;
+  string  alarmWebhookSecretKey = 15;
+  string  alarmItemList = 16;
+  int32 dataVersion =17; //数据版本
+  repeated Rule rules = 18;          // 转换规则列表
 }

@@ -22,9 +22,8 @@ import (
 	"net/http"
 	"time"
 
+	"go-mysql-transfer/util/log"
 	"go.uber.org/zap"
-
-	"go-mysql-transfer/util/logs"
 )
 
 var DefaultClient = NewClient()
@@ -38,7 +37,7 @@ type HttpClient struct {
 // 创建Client
 func NewClient() *HttpClient {
 	return &HttpClient{
-		logger:   logs.Logger(),
+		logger:   log.GetLogger(),
 		inner:    &http.Client{},
 		criteria: newRequestCriteria(),
 	}

@@ -1,0 +1,15 @@
+syntax = "proto3";
+// 定义包名
+option go_package ="/domain/po";
+
+// 定义'管道状态'结构
+message PipelineState {
+  // 类型 字段 = 标识号
+  uint32 status = 1;
+  uint64 insertCount = 2;
+  uint64 updateCount = 3;
+  uint64 deleteCount = 4;
+  string node  = 5;
+  string startTime=6;
+  int64  updateTime = 7;
+}

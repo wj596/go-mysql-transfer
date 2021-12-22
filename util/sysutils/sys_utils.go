@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-
-	"github.com/asaskevich/govalidator"
 )
 
 type Closer interface {
@@ -35,23 +33,4 @@ func WaitCloseSignalsAndRelease(closer Closer) {
 	signal.Notify(signals, os.Interrupt, os.Kill, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
 	<-signals
 	closer.Close()
-}
-
-func IsAddresses(addresses string) bool {
-	arrays := strings.Split(addresses, ",")
-	for _, address := range arrays {
-		lastIndex := strings.LastIndex(address, ":")
-		if lastIndex == -1 {
-			return false
-		}
-		ip := address[0:lastIndex]
-		port := address[lastIndex+1:]
-		if !govalidator.IsIP(ip) {
-			return false
-		}
-		if !govalidator.IsNumeric(port) {
-			return false
-		}
-	}
-	return true
 }

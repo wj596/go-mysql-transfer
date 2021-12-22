@@ -1,16 +1,30 @@
+/*
+ * Copyright 2021-2022 the original author(https://github.com/wj596)
+ *
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * </p>
+ */
+
 package vo
 
 import (
 	"fmt"
+
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/util/stringutils"
 )
-
-type TransformRuleParams struct {
-	PipelineId uint64
-	EndpointType int32
-}
 
 // ColumnMappingItem 列名映射
 type ColumnMappingItem struct {
@@ -32,16 +46,13 @@ type EsIndexMappingItem struct {
 	EsAnalyzer string `json:"esAnalyzer"`
 }
 
-// TransformRuleVO '转换规则'值对象
-// see TransformRule
-type TransformRuleVO struct {
-	Id                                 uint64                      `json:"id,string"`
-	Key                                string                      `json:"key"`
-	PipelineInfoId                     uint64                      `json:"pipelineInfoId,string"`
-	PipelineInfoName                   string                      `json:"pipelineInfoName"`
-	SourceId                           uint64                      `json:"sourceId,string"`
-	EndpointId                         uint64                      `json:"endpointId,string"`
-	EndpointType                       int32                       `json:"endpointType"`
+type RuleVO struct {
+	Key          string `json:"key"`
+	PipelineId   uint64 `json:"pipelineId,string"`
+	PipelineName string `json:"pipelineName,string"`
+	SourceId     uint64 `json:"sourceId,string"`
+	EndpointId   uint64 `json:"endpointId,string"`
+	//EndpointType                       int32                       `json:"endpointType"`
 	Type                               int32                       `json:"type"`
 	TypeName                           string                      `json:"typeName"`
 	IsCopy                             bool                        `json:"isCopy"`
@@ -84,19 +95,28 @@ type TransformRuleVO struct {
 	LuaScript string `json:"luaScript"`
 }
 
-func (s *TransformRuleVO) ToPO() *po.TransformRule {
-	if s.Type == constants.TransformRuleTypeLuaScript {
-		return &po.TransformRule{
+func (s *RuleVO) ToPO(endpointType uint32) *po.Rule {
+	if s.Type == constants.RuleTypeLuaScript {
+		rule := &po.Rule{
 			Type:      s.Type,
 			Schema:    s.Schema,
 			Table:     s.Table,
 			LuaScript: s.LuaScript,
 		}
+
+		if endpointType == constants.EndpointTypeRedis ||
+			endpointType == constants.EndpointTypeRabbitMQ ||
+			endpointType == constants.EndpointTypeRocketMQ ||
+			endpointType == constants.EndpointTypeKafka ||
+			endpointType == constants.EndpointTypeHttp {
+			rule.ReserveCoveredData = true
+		}
+
+		return rule
 	}
 
-	p := &po.TransformRule{
+	p := &po.Rule{
 		Type:                s.Type, //0规则 1脚本
-		EndpointType:        s.EndpointType,
 		ReceiveType:         stringutils.ToInt32Safe(s.ReceiveType),
 		Schema:              s.Schema,
 		Table:               s.Table,
@@ -125,7 +145,7 @@ func (s *TransformRuleVO) ToPO() *po.TransformRule {
 		p.AdditionalColumnValueMapping = additionalColumnValueMapping
 	}
 
-	if s.EndpointType == constants.EndpointTypeRedis {
+	if endpointType == constants.EndpointTypeRedis {
 		p.RedisStructure = stringutils.ToInt32Safe(s.RedisStructure)   //对应redis的5种数据类型 1:String、2:Hash(字典) 、3:List(列表) 、4:Set(集合)、5:Sorted Set(有序集合)
 		p.RedisKeyPrefix = s.RedisKeyPrefix                            //key的前缀
 		p.RedisKeyBuilder = stringutils.ToInt32Safe(s.RedisKeyBuilder) //key生成方式，0:使用列值(默认使用主键)、1:表达式、2固定值
@@ -137,12 +157,12 @@ func (s *TransformRuleVO) ToPO() *po.TransformRule {
 		p.RedisSortedSetScoreColumn = s.RedisSortedSetScoreColumn      // Sorted Set(有序集合)的Score
 	}
 
-	if s.EndpointType == constants.EndpointTypeMongoDB {
+	if endpointType == constants.EndpointTypeMongoDB {
 		p.MongodbDatabase = s.MongodbDatabase
 		p.MongodbCollection = s.MongodbCollection
 	}
 
-	if s.EndpointType == constants.EndpointTypeElasticsearch {
+	if endpointType == constants.EndpointTypeElasticsearch {
 		p.EsIndexBuildType = stringutils.ToInt32Safe(s.EsIndexBuildType) //Index名称创建方式，0使用已经存在的、1自动创建
 		p.EsIndexName = s.EsIndexName
 		if nil != s.EsIndexMappingGroups && len(s.EsIndexMappingGroups) > 0 {
@@ -160,13 +180,13 @@ func (s *TransformRuleVO) ToPO() *po.TransformRule {
 		}
 	}
 
-	if s.EndpointType == constants.EndpointTypeRocketMQ ||
-		s.EndpointType == constants.EndpointTypeKafka ||
-		s.EndpointType == constants.EndpointTypeRabbitMQ {
+	if endpointType == constants.EndpointTypeRocketMQ ||
+		endpointType == constants.EndpointTypeKafka ||
+		endpointType == constants.EndpointTypeRabbitMQ {
 		p.MqTopic = s.MqTopic
 	}
 
-	if s.EndpointType == constants.EndpointTypeHttp {
+	if endpointType == constants.EndpointTypeHttp {
 		p.HttpParameterName = s.HttpParameterName
 		p.HttpReserveRawData = s.HttpReserveRawData
 	}
@@ -174,19 +194,18 @@ func (s *TransformRuleVO) ToPO() *po.TransformRule {
 	return p
 }
 
-func (s *TransformRuleVO) FromPO(p *po.TransformRule) {
-	s.Id = p.Id
+func (s *RuleVO) FromPO(p *po.Rule, endpointType uint32) {
 	s.Type = p.Type
 	s.TypeName = "规则"
-	if p.Type == constants.TransformRuleTypeLuaScript {
+	if p.Type == constants.RuleTypeLuaScript {
 		s.TypeName = "脚本"
 	}
-	s.EndpointType = p.EndpointType
 	s.Schema = p.Schema
 	s.Table = p.Table
-	s.PipelineInfoId = p.PipelineInfoId
+	s.ReserveCoveredData = p.ReserveCoveredData
 	s.Key = fmt.Sprintf("%s.%s", p.Schema, p.Table)
-	if p.Type == constants.TransformRuleTypeLuaScript {
+
+	if p.Type == constants.RuleTypeLuaScript {
 		s.LuaScript = p.LuaScript
 	} else {
 		s.ReceiveType = stringutils.ToString(p.ReceiveType)
@@ -200,7 +219,6 @@ func (s *TransformRuleVO) FromPO(p *po.TransformRule) {
 		s.DataExpression = p.DataExpression                             //数据expression
 		s.DateFormatter = stringutils.ToString(p.DateFormatter)         //date类型格式化
 		s.DatetimeFormatter = stringutils.ToString(p.DatetimeFormatter) //datetime、timestamp类型格式化
-		s.ReserveCoveredData = p.ReserveCoveredData
 		s.OrderColumn = p.OrderColumn
 
 		if nil != p.ColumnNameMapping && len(p.ColumnNameMapping) > 0 {
@@ -235,7 +253,7 @@ func (s *TransformRuleVO) FromPO(p *po.TransformRule) {
 			s.AdditionalColumnValueMappingGroups = make([]AdditionalColumnValueItem, 0)
 		}
 
-		if p.EndpointType == constants.EndpointTypeRedis {
+		if endpointType == constants.EndpointTypeRedis {
 			s.RedisStructure = stringutils.ToString(p.RedisStructure)   //对应redis的5种数据类型 1:String、2:Hash(字典) 、3:List(列表) 、4:Set(集合)、5:Sorted Set(有序集合)
 			s.RedisKeyPrefix = p.RedisKeyPrefix                         //key的前缀
 			s.RedisKeyBuilder = stringutils.ToString(p.RedisKeyBuilder) //key生成方式，0:使用列值(默认使用主键)、1:表达式、2固定值
@@ -247,12 +265,12 @@ func (s *TransformRuleVO) FromPO(p *po.TransformRule) {
 			s.RedisSortedSetScoreColumn = p.RedisSortedSetScoreColumn   // Sorted Set(有序集合)的Score
 		}
 
-		if p.EndpointType == constants.EndpointTypeMongoDB {
+		if endpointType == constants.EndpointTypeMongoDB {
 			s.MongodbDatabase = p.MongodbDatabase
 			s.MongodbCollection = p.MongodbCollection
 		}
 
-		if p.EndpointType == constants.EndpointTypeElasticsearch {
+		if endpointType == constants.EndpointTypeElasticsearch {
 			s.EsIndexBuildType = stringutils.ToString(p.EsIndexBuildType) //Index名称创建方式，0使用已经存在的、1自动创建
 			s.EsIndexName = p.EsIndexName
 			if nil != p.EsIndexMappings && len(p.EsIndexMappings) > 0 {
@@ -270,14 +288,14 @@ func (s *TransformRuleVO) FromPO(p *po.TransformRule) {
 			}
 		}
 
-		if p.EndpointType == constants.EndpointTypeRocketMQ ||
-			p.EndpointType == constants.EndpointTypeKafka ||
-			p.EndpointType == constants.EndpointTypeRabbitMQ {
+		if endpointType == constants.EndpointTypeRocketMQ ||
+			endpointType == constants.EndpointTypeKafka ||
+			endpointType == constants.EndpointTypeRabbitMQ {
 
 			s.MqTopic = p.MqTopic
 		}
 
-		if p.EndpointType == constants.EndpointTypeHttp {
+		if endpointType == constants.EndpointTypeHttp {
 			s.HttpParameterName = p.HttpParameterName
 			s.HttpReserveRawData = p.HttpReserveRawData
 		}

@@ -30,6 +30,8 @@ const (
 	TimeSecondFormatter         = "15:04:05"                // 时间格式--秒
 )
 
+var loc, _ = time.LoadLocation("Asia/Shanghai")
+
 // NowFormatted 默认格式2006-01-02 15:04:05
 func NowFormatted() string {
 	return time.Now().Format(DayTimeSecondFormatter)
@@ -41,6 +43,11 @@ func NowLayout(layout string) string {
 
 func Layout(date time.Time, layout string) string {
 	return date.Format(layout)
+}
+
+func TimestampLayout(timestamp int64, layout string) string {
+	t := time.Unix(timestamp, 0).In(loc)
+	return t.Format(layout)
 }
 
 func DefaultLayout(time time.Time) string {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 the original author(https://github.com/wj596)
+ * Copyright 2021-2022 the original author(https://github.com/wj596)
  *
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,16 @@
 package config
 
 import (
-	"github.com/juju/errors"
-	"gopkg.in/yaml.v2"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"path/filepath"
 
+	"github.com/juju/errors"
+	"gopkg.in/yaml.v2"
+
 	"go-mysql-transfer/util/fileutils"
+	"go-mysql-transfer/util/netutils"
 	"go-mysql-transfer/util/sysutils"
 )
 
@@ -35,32 +38,20 @@ const (
 	_dataDir                = "store"
 	_prometheusExporterPort = 9595
 	_webPort                = 8060
-	_rpcPort                = 7060
-
-	_batchBulkSize       = 100
-	_batchCoroutines     = 3
-	_streamBulkSize      = 100
-	_streamFlushInterval = 200
 )
 
 var _instance *AppConfig
 
 // AppConfig 应用配置
 type AppConfig struct {
-	DataDir             string `yaml:"data_dir"`
-	BatchCoroutines     int    `yaml:"batch_coroutines"`    // 批处理最大协程数，默认3
-	BatchBulkSize       int    `yaml:"batch_bulk_size"`     // 批处理每批提交条数，默认100
-	StreamBulkSize      int    `yaml:"stream_bulk_size"`    // 实时数据每批提交条数，默认100
-	StreamFlushInterval int    `yaml:"flush_bulk_interval"` // 实时数据刷新周期，单位毫秒，默认200毫秒
+	DataDir   string `yaml:"data_dir"`
+	WebPort   int    `yaml:"web_port"`   // Web端口,默认8060
+	SecretKey string `yaml:"secret_key"` // 签名秘钥
 
-	EnablePrometheusExporter bool `yaml:"enable_prometheus_exporter"` // 启用prometheus exporter，默认false
-	PrometheusExporterPort   int  `yaml:"prometheus_exporter_addr"`   // prometheus exporter端口
-	WebPort                  int  `yaml:"web_port"`                   // web管理界面端口,默认8060
-	RpcPort                  int  `yaml:"rpc_port"`                   // RPC端口，用于集群节点间通信，默认7060
-
-	LoggerConf      *LoggerConfig     `yaml:"logger"`    // 日志配置
-	ClusterConf     *ClusterConfig    `yaml:"cluster"`   // 集群配置
-	ConsumerConfigs []*ConsumerConfig `yaml:"consumers"` // 用户配置
+	LoggerConf  *LoggerConfig  `yaml:"logger"`  // 日志配置
+	UserConfigs []*UserConfig  `yaml:"users"`   // 用户配置
+	SmtpConf    *SmtpConfig    `yaml:"smtp"`    // SMTP协议配置
+	ClusterConf *ClusterConfig `yaml:"cluster"` // 集群配置
 }
 
 func Initialize(fileName string) error {
@@ -75,7 +66,7 @@ func Initialize(fileName string) error {
 	}
 
 	if err := checkConfig(&c); err != nil {
-		return errors.Trace(err)
+		return err
 	}
 
 	_instance = &c
@@ -87,35 +78,27 @@ func checkConfig(c *AppConfig) error {
 	if c.DataDir == "" {
 		c.DataDir = filepath.Join(sysutils.CurrentDirectory(), _dataDir)
 	}
+
 	if err := fileutils.MkdirIfNecessary(c.DataDir); err != nil {
 		return err
 	}
 
-	if c.PrometheusExporterPort == 0 {
-		c.PrometheusExporterPort = _prometheusExporterPort
-	}
 	if c.WebPort == 0 {
 		c.WebPort = _webPort
 	}
-	if c.RpcPort == 0 {
-		c.RpcPort = _rpcPort
-	}
-	if c.BatchCoroutines <= 0 {
-		c.BatchCoroutines = _batchCoroutines
-	}
-	if c.BatchBulkSize <= 0 {
-		c.BatchBulkSize = _batchBulkSize
-	}
-	if c.StreamBulkSize <= 0 {
-		c.StreamBulkSize = _streamBulkSize
-	}
-	if c.StreamFlushInterval <= 0 {
-		c.StreamFlushInterval = _streamFlushInterval
+
+	if c.SecretKey == "" {
+		return errors.New("配置文件错误：配置项'secret_key' 不能为空")
 	}
 
 	// Logger
 	if err := checkLoggerConfig(c); err != nil {
 		return errors.Trace(err)
+	}
+
+	// SMTP
+	if err := checkSmtpConfig(c); err != nil {
+		return err
 	}
 
 	// Cluster
@@ -132,9 +115,11 @@ func checkLoggerConfig(c *AppConfig) error {
 			Store: filepath.Join(c.DataDir, "log"),
 		}
 	}
+
 	if c.LoggerConf.Store == "" {
 		c.LoggerConf.Store = filepath.Join(c.DataDir, "log")
 	}
+
 	if err := fileutils.MkdirIfNecessary(c.LoggerConf.Store); err != nil {
 		return err
 	}
@@ -143,15 +128,43 @@ func checkLoggerConfig(c *AppConfig) error {
 }
 
 func checkClusterConfig(c *AppConfig) error {
-	if c.GetClusterConfig() == nil {
-		return nil
-	}
-	if c.GetClusterConfig().GetZkAddrs() == "" && c.GetClusterConfig().GetEtcdAddrs() == "" {
+	if c.ClusterConf == nil {
 		return nil
 	}
 
-	if c.GetClusterConfig().GetName() == "" {
-		c.GetClusterConfig().Name = _clusterName
+	if c.ClusterConf.BindIp != "" && !netutils.CheckIp(c.ClusterConf.BindIp) {
+		return errors.New("配置文件错误：cluster配置项'node_ip'可以为空, 如果不为空必须是一个IP地址，")
+	}
+
+	if c.ClusterConf.BindIp == "" {
+		ips, err := netutils.GetIpList()
+		if err != nil {
+			return err
+		}
+		if len(ips) > 1 {
+			return errors.New(fmt.Sprintf(
+				"检测到机器上存在多个IP地址：%v，无法确定向其他集群节点暴露那个IP。请在配置文件'cluster'->'node_ip'配置项中指定", ips))
+		}
+		c.ClusterConf.BindIp = ips[0]
+	}
+
+	return nil
+}
+
+func checkSmtpConfig(c *AppConfig) error {
+	if c.SmtpConf != nil {
+		if c.SmtpConf.Host == "" {
+			return errors.New("配置项 'smtp'->'host'不能为空")
+		}
+		if c.SmtpConf.Port <= 0 {
+			return errors.New("请正确配置 'smtp'->'port'的值")
+		}
+		if c.SmtpConf.User == "" {
+			return errors.New("配置项 'smtp'->'user'不能为空")
+		}
+		if c.SmtpConf.Password == "" {
+			return errors.New("配置项 'smtp'->'user'不能为空")
+		}
 	}
 
 	return nil
@@ -168,36 +181,12 @@ func (c *AppConfig) GetDataDir() string {
 	return c.DataDir
 }
 
-func (c *AppConfig) GetBatchCoroutines() int {
-	return c.BatchCoroutines
-}
-
-func (c *AppConfig) GetBatchBulkSize() int {
-	return c.BatchBulkSize
-}
-
-func (c *AppConfig) GetStreamBulkSize() int {
-	return c.StreamBulkSize
-}
-
-func (c *AppConfig) GetStreamFlushInterval() int {
-	return c.StreamFlushInterval
-}
-
-func (c *AppConfig) IsEnablePrometheusExporter() bool {
-	return c.EnablePrometheusExporter
-}
-
-func (c *AppConfig) GetPrometheusExporterPort() int {
-	return c.PrometheusExporterPort
-}
-
 func (c *AppConfig) GetWebPort() int {
 	return c.WebPort
 }
 
-func (c *AppConfig) GetRpcPort() int {
-	return c.WebPort
+func (c *AppConfig) GetSecretKey() string {
+	return c.SecretKey
 }
 
 func (c *AppConfig) GetClusterConfig() *ClusterConfig {
@@ -208,8 +197,12 @@ func (c *AppConfig) GetLoggerConfig() *LoggerConfig {
 	return c.LoggerConf
 }
 
-func (c *AppConfig) GetConsumerConfigs() []*ConsumerConfig {
-	return c.ConsumerConfigs
+func (c *AppConfig) GetUserConfigs() []*UserConfig {
+	return c.UserConfigs
+}
+
+func (c *AppConfig) GetSmtpConfig() *SmtpConfig {
+	return c.SmtpConf
 }
 
 func (c *AppConfig) IsCluster() bool {
@@ -234,6 +227,13 @@ func (c *AppConfig) IsEtcdUsed() bool {
 		return false
 	}
 	if c.ClusterConf.EtcdAddrs == "" {
+		return false
+	}
+	return true
+}
+
+func (c *AppConfig) IsSmtpUsed() bool {
+	if c.SmtpConf == nil {
 		return false
 	}
 	return true

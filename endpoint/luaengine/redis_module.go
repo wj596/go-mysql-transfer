@@ -1,10 +1,37 @@
+/*
+ * Copyright 2021-2022 the original author(https://github.com/wj596)
+ *
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * </p>
+ */
+
 package luaengine
 
 import (
+	"github.com/siddontang/go-mysql/canal"
 	"github.com/yuin/gopher-lua"
 
 	"go-mysql-transfer/domain/constants"
-	"go-mysql-transfer/util/incrementer"
+	"go-mysql-transfer/util/stringutils"
+)
+
+const (
+	_string    = "0"
+	_hash      = "1"
+	_list      = "2"
+	_set       = "3"
+	_sortedSet = "4"
 )
 
 func preloadRedisModule(L *lua.LState) {
@@ -39,113 +66,126 @@ var redisApis = map[string]lua.LGFunction{
 
 func redisApiSet(L *lua.LState) int {
 	key := L.CheckString(1)
-	val := L.CheckAny(2)
+	value := L.CheckAny(2)
+	combine := stringutils.JoinWithUnderline(canal.InsertAction, _string, key)
+
 	result := L.GetGlobal(constants.LuaGlobalVariableResult)
-	L.SetTable(result, lua.LString("insert_1_"+key), val)
+	L.SetTable(result, lua.LString(combine), value)
 	return 0
 }
 
 func redisApiDel(L *lua.LState) int {
 	key := L.CheckString(1)
+	combine := stringutils.JoinWithUnderline(canal.DeleteAction, _string, key)
+
 	result := L.GetGlobal(constants.LuaGlobalVariableResult)
-	L.SetTable(result, lua.LString("delete_1_"+key), lua.LBool(true))
+	L.SetTable(result, lua.LString(combine), lua.LBool(true))
 	return 0
 }
 
 func redisApiHashSet(L *lua.LState) int {
 	key := L.CheckString(1)
 	field := L.CheckAny(2)
-	val := L.CheckAny(3)
+	value := L.CheckAny(3)
+	combine := stringutils.JoinWithUnderline(canal.InsertAction, _hash, nextId())
 
 	hash := L.NewTable()
 	L.SetTable(hash, lua.LString("key"), lua.LString(key))
 	L.SetTable(hash, lua.LString("field"), field)
-	L.SetTable(hash, lua.LString("val"), val)
+	L.SetTable(hash, lua.LString("value"), value)
 
 	result := L.GetGlobal(constants.LuaGlobalVariableResult)
-	L.SetTable(result, lua.LString("insert_2_"+incrementer.NextStr()), hash)
+	L.SetTable(result, lua.LString(combine), hash)
 	return 0
 }
 
 func redisApiHashDel(L *lua.LState) int {
 	key := L.CheckAny(1)
 	field := L.CheckAny(2)
+	combine := stringutils.JoinWithUnderline(canal.DeleteAction, _hash, nextId())
 
 	hash := L.NewTable()
 	L.SetTable(hash, lua.LString("key"), key)
 	L.SetTable(hash, lua.LString("field"), field)
-	L.SetTable(hash, lua.LString("val"), lua.LNumber(1))
+	L.SetTable(hash, lua.LString("value"), lua.LNumber(1))
 
 	result := L.GetGlobal(constants.LuaGlobalVariableResult)
-	L.SetTable(result, lua.LString("delete_2_"+incrementer.NextStr()), hash)
+	L.SetTable(result, lua.LString(combine), hash)
 	return 0
 }
 
 func redisApiRightPush(L *lua.LState) int {
 	key := L.CheckString(1)
-	val := L.CheckAny(2)
+	value := L.CheckAny(2)
+	combine := stringutils.JoinWithUnderline(canal.InsertAction, _list, key)
 
 	result := L.GetGlobal(constants.LuaGlobalVariableResult)
-	L.SetTable(result, lua.LString("insert_3_"+key), val)
+	L.SetTable(result, lua.LString(combine), value)
 	return 0
 }
 
 func redisApiLeftRem(L *lua.LState) int {
 	key := L.CheckString(1)
-	val := L.CheckAny(2)
+	value := L.CheckAny(2)
+	combine := stringutils.JoinWithUnderline(canal.DeleteAction, _list, key)
 
 	result := L.GetGlobal(constants.LuaGlobalVariableResult)
-	L.SetTable(result, lua.LString("delete_3_"+key), val)
+	L.SetTable(result, lua.LString(combine), value)
 	return 0
 }
 
 func redisApiSetAdd(L *lua.LState) int {
 	key := L.CheckString(1)
-	val := L.CheckAny(2)
+	value := L.CheckAny(2)
+	combine := stringutils.JoinWithUnderline(canal.InsertAction, _set, key)
 
 	result := L.GetGlobal(constants.LuaGlobalVariableResult)
-	L.SetTable(result, lua.LString("insert_4_"+key), val)
+	L.SetTable(result, lua.LString(combine), value)
 	return 0
 }
 
 func redisApiSetRem(L *lua.LState) int {
 	key := L.CheckString(1)
-	val := L.CheckAny(2)
+	value := L.CheckAny(2)
+	combine := stringutils.JoinWithUnderline(canal.DeleteAction, _set, key)
 
 	result := L.GetGlobal(constants.LuaGlobalVariableResult)
-	L.SetTable(result, lua.LString("delete_4_"+key), val)
+	L.SetTable(result, lua.LString(combine), value)
 	return 0
 }
 
 func redisApiSortedSetAdd(L *lua.LState) int {
 	key := L.CheckString(1)
 	score := L.CheckAny(2)
-	val := L.CheckAny(3)
+	value := L.CheckAny(3)
+	combine := stringutils.JoinWithUnderline(canal.InsertAction, _sortedSet, nextId())
 
 	hash := L.NewTable()
 	L.SetTable(hash, lua.LString("key"), lua.LString(key))
 	L.SetTable(hash, lua.LString("score"), score)
-	L.SetTable(hash, lua.LString("val"), val)
+	L.SetTable(hash, lua.LString("value"), value)
 
 	result := L.GetGlobal(constants.LuaGlobalVariableResult)
-	L.SetTable(result, lua.LString("insert_5_"+incrementer.NextStr()), hash)
+	L.SetTable(result, lua.LString(combine), hash)
 	return 0
 }
 
 func redisApiSortedSetRem(L *lua.LState) int {
 	key := L.CheckString(1)
-	val := L.CheckAny(2)
+	value := L.CheckAny(2)
+	combine := stringutils.JoinWithUnderline(canal.DeleteAction, _sortedSet, key)
 
 	result := L.GetGlobal(constants.LuaGlobalVariableResult)
-	L.SetTable(result, lua.LString("delete_5_"+key), val)
+	L.SetTable(result, lua.LString(combine), value)
 	return 0
 }
 
 func redisApiExpire(L *lua.LState) int {
 	key := L.CheckString(1)
-	val := L.CheckNumber(2)
+	value := L.CheckNumber(2)
+	combine := stringutils.JoinWithUnderline(constants.ExpireAction, key)
 
 	result := L.GetGlobal(constants.LuaGlobalVariableResult)
-	L.SetTable(result, lua.LString("expire_"+key), val)
+	L.SetTable(result, lua.LString(combine), value)
 	return 0
 }

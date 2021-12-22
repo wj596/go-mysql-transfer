@@ -17,5 +17,6 @@ message SourceInfo {
   string charset  =7; //字符串编码
   uint32 slaveID =8; //SlaveID
   string flavor   =9; // mysql or mariadb,默认mysql
-  uint32 status =10; //状态 0正常 1停用
+  uint32 status =10; //状态 0正常 9停用
+  int32 dataVersion =11; //数据版本
 }

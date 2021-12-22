@@ -23,6 +23,7 @@ package fileutils
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,4 +80,13 @@ func MkdirIfNecessary(path string) error {
 		}
 	}
 	return nil
+}
+
+// ReadAsString 读出文件作为字符串
+func ReadAsString(path string) (string, error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }

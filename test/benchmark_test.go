@@ -1,29 +1,38 @@
 package test
 
 import (
-	"fmt"
-	"go-mysql-transfer/test/ss"
+	"encoding/json"
+	"go-mysql-transfer/domain/po"
+	"google.golang.org/protobuf/proto"
 	"testing"
 )
 
 func BenchmarkDirectAccess(b *testing.B) {
-	ss.Init()
+	e := &po.PipelineState{
+		Status:      1,
+		InsertCount: 1250122,
+		UpdateCount: 2652,
+		DeleteCount: 55855596699,
+		Node:        "192.168.44.113",
+		UpdateTime:  2365892585559,
+	}
+
 	for jj := 0; jj < b.N; jj++ {
-		p,ok := ss.Persons["50"]
-		if !ok{
-			fmt.Println(p)
-			fmt.Println(ok)
-		}
+		proto.Marshal(e)
 	}
 }
 
 func BenchmarkMethod(b *testing.B) {
-	ss.Init()
+	e := &po.PipelineState{
+		Status:      1,
+		InsertCount: 1250122,
+		UpdateCount: 2652,
+		DeleteCount: 55855596699,
+		Node:        "192.168.44.113",
+		UpdateTime:  2365892585559,
+	}
+
 	for jj := 0; jj < b.N; jj++ {
-		p,ok := ss.Get("50")
-		if !ok{
-			fmt.Println(p)
-			fmt.Println(ok)
-		}
+		json.Marshal(e)
 	}
 }

@@ -1,6 +1,25 @@
+/*
+ * Copyright 2021-2022 the original author(https://github.com/wj596)
+ *
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * </p>
+ */
+
 package web
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,14 +38,36 @@ var _server *http.Server
 func Initialize() error {
 	gin.SetMode(gin.ReleaseMode)
 	handler := gin.New()
-	handler.Use(filter.CorsFilter())
-	//handler.Use(middleware.Auth())
-	initAuthAction(handler)
-	initSourceInfoAction(handler)
-	initEndpointInfoAction(handler)
-	initPipelineInfoAction(handler)
-	initTransformRuleAction(handler)
-	initRunningAction(handler)
+	{
+		handler.Use(filter.CorsFilter())
+		handler.LoadHTMLFiles("D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\index.html")
+		handler.StaticFile("/favicon.ico", "D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\favicon.ico")
+		handler.StaticFile("/_app.config.js", "D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\_app.config.js")
+		handler.StaticFS("/assets", http.Dir("D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\assets"))
+		handler.StaticFS("/resource", http.Dir("D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\resource"))
+		handler.GET("/", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "index.html", gin.H{})
+		})
+	}
+
+	ui := handler.Group("/ui")
+	ui.Use(filter.AuthFilter())
+	{
+		initAuthAction(ui)
+		initSourceInfoAction(ui)
+		initEndpointInfoAction(ui)
+		initPipelineInfoAction(ui)
+		initRunningAction(ui)
+		initClusterAction(ui)
+		initDashboardAction(ui)
+	}
+
+	api := handler.Group("/api")
+	api.Use(filter.SignFilter())
+	{
+		initLeaderAction(api)
+		initFollowerAction(api)
+	}
 
 	port := config.GetIns().GetWebPort()
 	listen := fmt.Sprintf(":%s", strconv.Itoa(port))
@@ -93,7 +134,8 @@ func Close() {
 		return
 	}
 
-	err := _server.Shutdown(nil)
+	ctx := context.Background()
+	err := _server.Shutdown(ctx)
 	if err != nil {
 		log.Println(err.Error())
 	}

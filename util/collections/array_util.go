@@ -1,6 +1,6 @@
 package collections
 
-import "go-mysql-transfer/util/stringutil"
+import "go-mysql-transfer/util/stringutils"
 
 func Contain(array []string, v interface{}) bool {
 	vvv := stringutils.ToString(v)

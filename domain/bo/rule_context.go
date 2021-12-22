@@ -1,3 +1,21 @@
+/*
+ * Copyright 2021-2022 the original author(https://github.com/wj596)
+ *
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * </p>
+ */
+
 package bo
 
 import (
@@ -33,24 +51,27 @@ type Padding struct {
 
 // RuleContext Dumper Rule上下文
 type RuleContext struct {
-	pipelineId             uint64
-	pipelineName           string
-	rule                   *po.TransformRule
-	tableInfo              *schema.Table
-	tableFullName          string
-	paddingMap             map[string]*Padding
-	rowSize                int                //行宽度(字段数量)
-	dataExpressionTmpl     *template.Template // 数据表达式模板
-	redisKeyExpressionTmpl *template.Template //redis KEY模板
-	luaFunctionProto       *lua.FunctionProto // Lua 预编译
-	lvm                    *lua.LState        // Lua 虚拟机
+	pipelineId                uint64
+	pipelineName              string
+	mongodbCollectionFullName string
+	endpointType              uint32
+	rule                      *po.Rule
+	tableInfo                 *schema.Table
+	tableFullName             string
+	paddingMap                map[string]*Padding
+	pkPaddings                []*Padding
+	rowSize                   int                //行宽度(字段数量)
+	dataExpressionTmpl        *template.Template // 数据表达式模板
+	redisKeyExpressionTmpl    *template.Template //redis KEY模板
+	luaFunctionProto          *lua.FunctionProto // Lua 预编译
+	lvm                       *lua.LState        // Lua 虚拟机
 }
 
-func CreateRuleContext(pipeline *po.PipelineInfo, rule *po.TransformRule, table *schema.Table, preLoadLuaVM bool) (*RuleContext, error) {
+func CreateRuleContext(pipeline *po.PipelineInfo, rule *po.Rule, table *schema.Table, preLoadLuaVM bool) (*RuleContext, error) {
 	// Lua脚本预编译
 	var luaFunctionProto *lua.FunctionProto
 	var lvm *lua.LState
-	if constants.TransformRuleTypeLuaScript == rule.Type {
+	if constants.RuleTypeLuaScript == rule.Type {
 		protoName := stringutils.UUID()
 		reader := strings.NewReader(rule.GetLuaScript())
 		chunk, err := parse.Parse(reader, protoName)
@@ -59,21 +80,24 @@ func CreateRuleContext(pipeline *po.PipelineInfo, rule *po.TransformRule, table 
 		}
 		luaFunctionProto, err = lua.Compile(chunk, protoName) //编译
 		if err != nil {
+			log.Error(err.Error())
 			return nil, err
 		}
 		if preLoadLuaVM { //预加载LUA虚拟机
-			L := luaengine.New()
+			L := luaengine.New(pipeline.EndpointType)
 			funcFromProto := L.NewFunctionFromProto(luaFunctionProto)
 			L.Push(funcFromProto)
-			err := L.PCall(0, lua.MultRet, nil)
+			err = L.PCall(0, lua.MultRet, nil)
 			if err != nil {
 				L.Close()
+				log.Error(err.Error())
 				return nil, err
 			}
 			lvm = L
 		}
 	}
 
+	tableFullName := strings.ToLower(rule.Schema + "." + rule.Table)
 	ctx := &RuleContext{
 		lvm:              lvm,
 		luaFunctionProto: luaFunctionProto,
@@ -81,11 +105,13 @@ func CreateRuleContext(pipeline *po.PipelineInfo, rule *po.TransformRule, table 
 		pipelineName:     pipeline.Name,
 		rule:             rule,
 		tableInfo:        table,
-		tableFullName:    strings.ToLower(rule.Schema + "." + rule.Table),
+		tableFullName:    tableFullName,
+		pkPaddings:       make([]*Padding, 0),
 	}
 
 	ctx.initPaddingMap()
 	ctx.initExpression()
+	ctx.initPkPaddings()
 
 	if rule.GetAdditionalColumnValueMapping() != nil {
 		ctx.rowSize = len(ctx.paddingMap) + len(rule.GetAdditionalColumnValueMapping())
@@ -93,7 +119,33 @@ func CreateRuleContext(pipeline *po.PipelineInfo, rule *po.TransformRule, table 
 		ctx.rowSize = len(ctx.paddingMap)
 	}
 
+	if constants.EndpointTypeMongoDB == pipeline.GetEndpointType() {
+		ctx.mongodbCollectionFullName = stringutils.Join(rule.MongodbDatabase, rule.MongodbCollection)
+	}
+
 	return ctx, nil
+}
+
+func (s *RuleContext) GetPrimaryKeyValue(request *RowEventRequest) interface{} {
+	l := len(s.pkPaddings)
+	if l == 0 {
+		return nil
+	}
+
+	if l == 1 {
+		p := s.pkPaddings[0]
+		d := request.Data[p.ColumnIndex]
+		v := s.convertColumnData(d, p)
+		return v
+	}
+
+	var key string
+	for _, p := range s.pkPaddings {
+		d := request.Data[p.ColumnIndex]
+		v := s.convertColumnData(d, p)
+		key += stringutils.ToString(v)
+	}
+	return key
 }
 
 // GetRow 获取当前的行数据
@@ -249,7 +301,7 @@ func (s *RuleContext) EncodePreValue(req *RowEventRequest) (string, error) {
 	return "", errors.New("不支持的数据编码类型")
 }
 
-func (s *RuleContext) GetRule() *po.TransformRule {
+func (s *RuleContext) GetRule() *po.Rule {
 	return s.rule
 }
 
@@ -289,7 +341,7 @@ func (s *RuleContext) GetPadding(column string) (*Padding, bool) {
 }
 
 func (s *RuleContext) IsLuaEnable() bool {
-	return s.rule.Type == constants.TransformRuleTypeLuaScript
+	return s.rule.Type == constants.RuleTypeLuaScript
 }
 
 func (s *RuleContext) GetLuaFunctionProto() *lua.FunctionProto {
@@ -308,6 +360,10 @@ func (s *RuleContext) GetPipelineName() string {
 	return s.pipelineName
 }
 
+func (s *RuleContext) GetMongodbCollectionFullName() string {
+	return s.mongodbCollectionFullName
+}
+
 // GetLuaVM 获取LUA虚拟机
 func (s *RuleContext) GetLuaVM() *lua.LState {
 	return s.lvm
@@ -322,11 +378,11 @@ func (s *RuleContext) CloseLuaVM() {
 
 func (s *RuleContext) initExpression() {
 	if constants.DataEncoderExpression == s.rule.DataEncoder {
-		tmpl, _ := template.New(strconv.FormatUint(s.rule.Id, 10)).Parse(s.rule.DataExpression)
+		tmpl, _ := template.New(s.tableFullName).Parse(s.rule.DataExpression)
 		s.dataExpressionTmpl = tmpl
 	}
 	if s.rule.RedisKeyExpression != "" {
-		tmpl, _ := template.New(strconv.FormatUint(s.rule.Id, 10)).Parse(s.rule.RedisKeyExpression)
+		tmpl, _ := template.New(s.tableFullName).Parse(s.rule.RedisKeyExpression)
 		s.redisKeyExpressionTmpl = tmpl
 	}
 }
@@ -355,8 +411,25 @@ func (s *RuleContext) initPaddingMap() {
 	s.paddingMap = paddingMap
 }
 
+func (s *RuleContext) initPkPaddings() {
+	if len(s.tableInfo.PKColumns) > 0 {
+		for _, index := range s.tableInfo.PKColumns {
+			column := s.tableInfo.Columns[index]
+			padding := &Padding{
+				WrapName:    s.toWrapName(column.Name),
+				ColumnIndex: index,
+				ColumnName:  column.Name,
+				ColumnType:  column.Type,
+				EnumValues:  column.EnumValues,
+				SetValues:   column.SetValues,
+			}
+			s.pkPaddings = append(s.pkPaddings, padding)
+		}
+	}
+}
+
 func (s *RuleContext) toWrapName(column string) string {
-	if s.rule.GetType() == constants.TransformRuleTypeLuaScript {
+	if s.rule.GetType() == constants.RuleTypeLuaScript {
 		return column
 	}
 

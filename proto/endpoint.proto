@@ -12,22 +12,23 @@ message EndpointInfo {
   string username =5;
   string password =6;
   uint32 status =7; //状态 0正常 1停用
+  int32 dataVersion =8; //数据版本
 
   // Redis
-  uint32 deployType =8; //部署模式 0：单机、1：集群
-  uint32 groupType =9; //集群类型 0：sentinel、1：cluster
-  string masterName =10; //Master节点名称,如果group_type为sentinel则此项不能为空，为cluster此项无效
-  uint32 database =11; //redis数据库 0-16,默认0。如果group_type为cluster此项无效
+  uint32 deployType =9; //部署模式 0：单机、1：集群
+  uint32 groupType =10; //集群类型 0：sentinel、1：cluster
+  string masterName =11; //Master节点名称,如果group_type为sentinel则此项不能为空，为cluster此项无效
+  uint32 database =12; //redis数据库 0-16,默认0。如果group_type为cluster此项无效
 
   //Elasticsearch
-  uint32 version = 12; //Elasticsearch版本，支持6和7、默认为7
+  uint32 version = 13; //Elasticsearch版本，支持6和7、默认为7
 
   //Rocketmq
-  string groupName = 13; //rocketmq group name,默认为空
-  string instanceName= 14; //rocketmq instance name,默认为空
+  string groupName = 14; //rocketmq group name,默认为空
+  string instanceName= 15; //rocketmq instance name,默认为空
 
   //http接口
-  uint32 authMode = 15 ; //认证模式 0:无效认证 1：Http Basic 2：JWT
-  string jwtSecretKey = 16 ; //jwt签名秘钥
-  uint32 jwtExpire = 17; //jwt签名有效期（单位秒）
+  uint32 authMode = 16; //认证模式 0:无效认证 1：Http Basic 2：JWT
+  string jwtSecretKey = 17; //jwt签名秘钥
+  uint32 jwtExpire = 18; //jwt签名有效期（单位秒）
 }

@@ -10,14 +10,14 @@ import (
 var sss *MockStreamEventHandler
 
 type MockStreamEventHandler struct {
-	counter *atomic.Int32
+	counter    *atomic.Int32
 	queue      chan interface{}
 	stopSignal chan struct{}
 }
 
 func newMockStreamEventHandler() *MockStreamEventHandler {
 	return &MockStreamEventHandler{
-		counter:atomic.NewInt32(0),
+		counter:    atomic.NewInt32(0),
 		queue:      make(chan interface{}, 10),
 		stopSignal: make(chan struct{}, 1),
 	}
@@ -44,7 +44,7 @@ func (s *MockStreamEventHandler) start() {
 			if needFlush {
 				s.counter.Add(1)
 				fmt.Println(s.counter.Load())
-				if s.counter.Load()>10{
+				if s.counter.Load() > 10 {
 					sss.stop()
 					sss = nil
 				}
@@ -61,6 +61,5 @@ func TestMockStreamEventHandler(t *testing.T) {
 	handler := newMockStreamEventHandler()
 	sss = handler
 	handler.start()
-	time.Sleep(1*time.Hour)
+	time.Sleep(1 * time.Hour)
 }
-

@@ -25,32 +25,19 @@ import (
 	"unsafe"
 )
 
-func StrToBytes(u string) []byte {
-	return []byte(u)
+func Uint8ToBytes(u uint8) ([]byte, error) {
+	bytesBuffer := bytes.NewBuffer([]byte{})
+	err := binary.Write(bytesBuffer, binary.BigEndian, &u)
+	if err != nil {
+		return nil, err
+	}
+	return bytesBuffer.Bytes(), nil
 }
 
-func BytesToStr(u []byte) string {
-	return string(u)
-}
-
-func Uint64ToBytes(u uint64) []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, u)
+func Uint16ToBytes(u uint16) []byte {
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, u)
 	return buf
-}
-
-func BytesToUint64(b []byte) uint64 {
-	if b == nil {
-		return 0
-	}
-	return binary.BigEndian.Uint64(b)
-}
-
-func BytesToUint32(b []byte) uint32 {
-	if b == nil {
-		return 0
-	}
-	return binary.BigEndian.Uint32(b)
 }
 
 func Uint32ToBytes(u uint32) []byte {
@@ -59,13 +46,10 @@ func Uint32ToBytes(u uint32) []byte {
 	return buf
 }
 
-func Uint8ToBytes(u uint8) ([]byte, error) {
-	bytesBuffer := bytes.NewBuffer([]byte{})
-	err := binary.Write(bytesBuffer, binary.BigEndian, &u)
-	if err != nil {
-		return nil, err
-	}
-	return bytesBuffer.Bytes(), nil
+func Uint64ToBytes(u uint64) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, u)
+	return buf
 }
 
 func BytesToUint8(b []byte) (uint8, error) {
@@ -78,12 +62,25 @@ func BytesToUint8(b []byte) (uint8, error) {
 	return tmp, nil
 }
 
-func ToJsonBytes(v interface{}) []byte {
-	bytes, err := json.Marshal(v)
-	if nil != err {
-		return nil
+func BytesToUint16(b []byte) uint16 {
+	if b == nil {
+		return 0
 	}
-	return bytes
+	return binary.BigEndian.Uint16(b)
+}
+
+func BytesToUint32(b []byte) uint32 {
+	if b == nil {
+		return 0
+	}
+	return binary.BigEndian.Uint32(b)
+}
+
+func BytesToUint64(b []byte) uint64 {
+	if b == nil {
+		return 0
+	}
+	return binary.BigEndian.Uint64(b)
 }
 
 func StringToBytes(s string) []byte {
@@ -94,4 +91,12 @@ func StringToBytes(s string) []byte {
 
 func BytesToString(b []byte) string {
 	return *(*string)(unsafe.Pointer(&b))
+}
+
+func ToJsonBytes(v interface{}) []byte {
+	bytes, err := json.Marshal(v)
+	if nil != err {
+		return nil
+	}
+	return bytes
 }

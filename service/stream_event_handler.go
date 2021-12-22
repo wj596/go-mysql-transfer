@@ -1,8 +1,25 @@
+/*
+ * Copyright 2021-2022 the original author(https://github.com/wj596)
+ *
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * </p>
+ */
+
 package service
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,23 +32,48 @@ import (
 	"go-mysql-transfer/util/log"
 )
 
-const _dumperEventQueueSize = 10240
+const (
+	_dumperEventQueueSize = 10240
+)
 
 type StreamEventHandler struct {
-	serv       *StreamService
-	pipelineId string
-
-	queue      chan interface{}
-	stopSignal chan struct{}
+	serv                  *StreamService
+	pipelineId            uint64
+	pipelineName          string
+	bulkSize              uint64
+	flushInterval         uint32
+	positionFlushInterval time.Duration
+	queue                 chan interface{}
+	stopSignal            chan struct{}
 }
 
 func newStreamEventHandler(service *StreamService) *StreamEventHandler {
-	return &StreamEventHandler{
-		serv:       service,
-		pipelineId: strconv.FormatUint(service.getPipelineId(), 10),
+	bulkSize := service.pipeline.StreamBulkSize
+	if bulkSize <= 0 {
+		bulkSize = uint64(constants.StreamBulkSize)
+	}
 
-		queue:      make(chan interface{}, _dumperEventQueueSize),
-		stopSignal: make(chan struct{}, 1),
+	flushInterval := service.pipeline.StreamFlushInterval
+	if flushInterval <= 0 {
+		flushInterval = uint32(constants.StreamFlushInterval)
+	}
+
+	positionFlushInterval := constants.PositionFlushInterval
+	if flushInterval > 1000 {
+		temp := (flushInterval / 1000) * 2
+		positionFlushInterval = time.Duration(temp)
+	}
+	log.Infof("StreamEventHandler positionFlushInterval[%d]", positionFlushInterval)
+
+	return &StreamEventHandler{
+		serv:                  service,
+		pipelineId:            service.pipeline.Id,
+		pipelineName:          service.pipeline.Name,
+		bulkSize:              bulkSize,
+		flushInterval:         flushInterval,
+		positionFlushInterval: positionFlushInterval,
+		queue:                 make(chan interface{}, _dumperEventQueueSize),
+		stopSignal:            make(chan struct{}, 1),
 	}
 }
 
@@ -39,13 +81,11 @@ func (s *StreamEventHandler) OnRow(e *canal.RowsEvent) error {
 	key := strings.ToLower(e.Table.Schema + "." + e.Table.Name)
 	ctx, exist := s.serv.getRuleContext(key)
 	if !exist {
-		log.Warnf("[%s] 不存在表[%s]的同步上下文", s.serv.getPipelineName(), key)
+		log.Warnf("StreamEventHandler[%s]不存在表[%s]的同步上下文", s.serv.pipeline.Name, key)
 		return nil
 	}
 
 	length := len(e.Rows)
-	s.serv.addHandleCount(e.Action, length)
-
 	var requests []*bo.RowEventRequest
 	if e.Action != canal.UpdateAction {
 		requests = make([]*bo.RowEventRequest, 0, length) // 定长分配
@@ -76,57 +116,58 @@ func (s *StreamEventHandler) OnRow(e *canal.RowsEvent) error {
 			requests = append(requests, v)
 		}
 	}
+
+	s.serv.runtime.AddCount(e.Action, len(requests))
 	s.queue <- requests
+
 	return nil
 }
 
 func (s *StreamEventHandler) start() {
 	go func() {
-		log.Infof("[%s] 启动事件监听", s.serv.getPipelineName())
-		bulkSize := s.serv.pipeline.FlushBulkSize
-		flushInterval := time.Duration(s.serv.pipeline.FlushBulkInterval)
-		ticker := time.NewTicker(time.Millisecond * flushInterval)
+		log.Infof("StreamEventHandler[%s]启动事件监听", s.pipelineName)
+		ticker := time.NewTicker(time.Millisecond * time.Duration(s.flushInterval))
 		defer ticker.Stop()
 
 		lastPositionSaveTime := time.Now()
-		sends := make([]*bo.RowEventRequest, 0, bulkSize)
+		sends := make([]*bo.RowEventRequest, 0, s.bulkSize)
 		var current mysql.Position
 		for {
 			needFlush := false
 			needSavePosition := false
 			select {
 			case v := <-s.queue:
-				switch v := v.(type) {
+				switch vv := v.(type) {
 				case bo.PositionEventRequest:
 					now := time.Now()
-					if v.Force || now.Sub(lastPositionSaveTime) > 3*time.Second {
+					if vv.Force || now.Sub(lastPositionSaveTime) > s.positionFlushInterval*time.Second {
 						lastPositionSaveTime = now
 						needFlush = true
 						needSavePosition = true
 						current = mysql.Position{
-							Name: v.Name,
-							Pos:  v.Position,
+							Name: vv.Name,
+							Pos:  vv.Position,
 						}
 					}
 				case []*bo.RowEventRequest:
-					sends = append(sends, v...)
-					needFlush = uint64(len(sends)) >= bulkSize
+					sends = append(sends, vv...)
+					needFlush = uint64(len(sends)) >= s.bulkSize
 				}
 			case <-ticker.C:
 				needFlush = true
 			case <-s.stopSignal:
-				log.Infof("[%s] 停止事件监听", s.serv.getPipelineName())
+				log.Infof("StreamEventHandler[%s]停止事件监听", s.pipelineName)
 				return
 			}
 
 			//刷新数据
 			if needFlush && len(sends) > 0 && s.serv.isEndpointEnable() {
-				log.Infof("[%s] 刷新[%d]条数据", s.serv.getPipelineName(), len(sends))
+				log.Infof("StreamEventHandler[%s]刷新[%d]条数据", s.pipelineName, len(sends))
 				err := s.serv.endpoint.Stream(sends)
 				if err != nil {
-					log.Errorf("[%s] 刷新数据失败[%s]", s.serv.getPipelineName(), err.Error())
+					log.Errorf("StreamEventHandler[%s]刷新数据失败[%s]", s.pipelineName, err.Error())
 					if err == constants.LuaScriptError {
-						closeStreamService(s.serv, "Lua脚本执行失败")
+						streamServicePanic(s.serv, "Lua脚本执行失败")
 					} else {
 						s.serv.endpointFault(fmt.Sprintf("端点故障[%s]", err.Error()))
 					}
@@ -136,12 +177,10 @@ func (s *StreamEventHandler) start() {
 
 			//刷新Position
 			if needSavePosition && s.serv.isEndpointEnable() {
-				s.serv.runtime.SetPosition(current)
-				_streamStateService.SaveStreamCounts(s.serv.getPipelineId(), s.serv.runtime)
-				log.Infof("[%s] 刷新Position[%s %d]", s.serv.getPipelineName(), current.Name, current.Pos)
-				if err := _streamStateService.SavePosition(s.serv.getPipelineId(), current); err != nil {
-					log.Errorf("[%s] 刷新Position失败[%s]", s.serv.getPipelineName(), err.Error())
-					closeStreamService(s.serv, fmt.Sprintf("刷新Position失败[%s]", err.Error()))
+				log.Infof("StreamEventHandler[%s]刷新Position[%s %d]", s.pipelineName, current.Name, current.Pos)
+				if err := _positionService.update(s.pipelineId, current); err != nil {
+					log.Errorf("StreamEventHandler[%s]刷新Position失败[%s]", s.pipelineName, err.Error())
+					streamServicePanic(s.serv, fmt.Sprintf("刷新Position失败[%s]", err.Error()))
 				}
 			}
 		}
@@ -153,7 +192,7 @@ func (s *StreamEventHandler) stop() {
 }
 
 func (s *StreamEventHandler) String() string {
-	return "StreamService[" + s.serv.getPipelineName() + "]"
+	return "StreamEventHandler[" + s.pipelineName + "]"
 }
 
 func (s *StreamEventHandler) OnGTID(gtid mysql.GTIDSet) error {
@@ -192,7 +231,7 @@ func (s *StreamEventHandler) OnDDL(nextPos mysql.Position, _ *replication.QueryE
 }
 
 func (s *StreamEventHandler) OnTableChanged(schema, table string) error {
-	log.Infof("StreamService[%s] OnTableChanged", s.serv.getPipelineName())
+	log.Infof("StreamService[%s] OnTableChanged", s.serv.pipeline.Name)
 	// onTableStructureChanged
 	return nil
 }

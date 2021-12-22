@@ -1,3 +1,21 @@
+/*
+ * Copyright 2021-2022 the original author(https://github.com/wj596)
+ *
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * </p>
+ */
+
 package vo
 
 import (
@@ -6,9 +24,10 @@ import (
 )
 
 type EndpointInfoParams struct {
-	page *pageutils.PageRequest
-	Name string
-	Host string
+	page   *pageutils.PageRequest
+	Name   string
+	Host   string
+	Enable bool
 }
 
 type EndpointInfoResp struct {
@@ -23,6 +42,7 @@ type EndpointInfoVO struct {
 	Addresses string `json:"addresses"` //地址
 	Username  string `json:"username"`
 	Password  string `json:"password"`
+	Status    uint32 `json:"status"`
 	// Redis
 	DeployType uint32 `json:"deployType"` //部署模式 0：单机、1：集群
 	GroupType  uint32 `json:"groupType"`  //集群类型 0：sentinel、1：cluster
@@ -81,6 +101,7 @@ func (s *EndpointInfoVO) ToPO() *po.EndpointInfo {
 		Addresses: s.Addresses,
 		Username:  s.Username,
 		Password:  s.Password,
+		Status:    s.Status,
 		// Redis
 		DeployType: s.DeployType,
 		GroupType:  s.GroupType,
@@ -105,6 +126,7 @@ func (s *EndpointInfoVO) FromPO(p *po.EndpointInfo) {
 	s.Addresses = p.Addresses
 	s.Username = p.Username
 	s.Password = p.Password
+	s.Status = p.Status
 	// Redis
 	s.DeployType = p.DeployType
 	s.GroupType = p.GroupType

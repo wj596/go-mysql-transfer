@@ -26,8 +26,16 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unsafe"
 
 	"github.com/satori/go.uuid"
+)
+
+const (
+	Comma     = ","
+	Blank     = ""
+	Strike    = "-"
+	Underline = "_"
 )
 
 // UUID 产生UUID
@@ -116,7 +124,7 @@ func ToJsonString(v interface{}) string {
 	if nil != err {
 		return ""
 	}
-	return string(bytes)
+	return *(*string)(unsafe.Pointer(&bytes))
 }
 
 func ToJsonIndent(v interface{}) string {
@@ -250,6 +258,39 @@ func ToUint32Safe(str string) uint32 {
 		return 0
 	}
 	return uint32(v)
+}
+
+func Join(vs ...interface{}) string {
+	var b bytes.Buffer
+	for i, v := range vs {
+		if i > 0 {
+			b.WriteString(Comma)
+		}
+		b.WriteString(ToString(v))
+	}
+	return b.String()
+}
+
+func JoinWith(separator string, vs ...interface{}) string {
+	var b bytes.Buffer
+	for i, v := range vs {
+		b.WriteString(ToString(v))
+		if i > 0 {
+			b.WriteString(separator)
+		}
+	}
+	return b.String()
+}
+
+func JoinWithUnderline(vs ...string) string {
+	var b bytes.Buffer
+	for i, v := range vs {
+		b.WriteString(v)
+		if i > 0 {
+			b.WriteString(Underline)
+		}
+	}
+	return b.String()
 }
 
 // ToString 转换为字符串
