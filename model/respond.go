@@ -31,7 +31,7 @@ type MQRespond struct {
 	Action    string      `json:"action"`
 	Timestamp uint32      `json:"timestamp"`
 	Raw       interface{} `json:"raw,omitempty"`
-	Date      interface{} `json:"date"`
+	Data      interface{} `json:"data"`
 	ByteArray []byte      `json:"-"`
 }
 
