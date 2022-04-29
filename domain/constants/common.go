@@ -20,6 +20,8 @@ package constants
 
 import "time"
 
+const ApplicationName = "go-mysql-transfer"
+
 const (
 	EsIndexBuildTypeExtend     = "0" //使用已经存在的
 	EsIndexBuildTypeAutoCreate = "1" //自动创建
@@ -34,7 +36,7 @@ const ( //Redis集群类型
 const (
 	ExpireAction            = "expire"
 	UpsertAction            = "upsert"
-	TestAction            = "upsert"
+	TestAction            = "test"
 
 	LuaGlobalVariableResult = "___RESULT___"
 

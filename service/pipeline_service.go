@@ -30,6 +30,7 @@ import (
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/domain/vo"
+	"go-mysql-transfer/util/commons"
 	"go-mysql-transfer/util/dateutils"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/snowflake"
@@ -155,7 +156,7 @@ func (s *PipelineInfoService) StartStream(id uint64) error {
 	}
 
 	log.Infof("创建[%s]StreamService,SourceInfo: Addr[%s]、User[%s]、Charset[%s]、Flavor[%s]、ServerID[%d]", pipeline.Name, fmt.Sprintf("%s:%d", sourceInfo.Host, sourceInfo.Port), sourceInfo.Username, sourceInfo.Charset, sourceInfo.Flavor, sourceInfo.SlaveID)
-	log.Infof("创建[%s]StreamService,EndpointInfo: Type[%s]、Addr[%s]、User[%s]", pipeline.Name, constants.GetEndpointTypeName(endpointInfo.GetType()), endpointInfo.GetAddresses(), endpointInfo.GetUsername())
+	log.Infof("创建[%s]StreamService,EndpointInfo: Type[%s]、Addr[%s]、User[%s]", pipeline.Name, commons.GetEndpointTypeName(endpointInfo.GetType()), endpointInfo.GetAddresses(), endpointInfo.GetUsername())
 
 	var serv *StreamService
 	serv, err = createStreamService(sourceInfo, endpointInfo, pipeline, runtime)
@@ -230,7 +231,7 @@ func (s *PipelineInfoService) StartBatch(id uint64) error {
 	}
 
 	log.Infof("创建BatchService[%s],  SourceInfo: Addr[%s]、User[%s]、Charset[%s]、Flavor[%s]、ServerID[%d]", pipeline.Name, fmt.Sprintf("%s:%d", sourceInfo.Host, sourceInfo.Port), sourceInfo.Username, sourceInfo.Charset, sourceInfo.Flavor, sourceInfo.SlaveID)
-	log.Infof("创建BatchService[%s],  EndpointInfo: Type[%s]、Addr[%s]、User[%s]", pipeline.Name, constants.GetEndpointTypeName(endpointInfo.GetType()), endpointInfo.GetAddresses(), endpointInfo.GetUsername())
+	log.Infof("创建BatchService[%s],  EndpointInfo: Type[%s]、Addr[%s]、User[%s]", pipeline.Name, commons.GetEndpointTypeName(endpointInfo.GetType()), endpointInfo.GetAddresses(), endpointInfo.GetUsername())
 
 	var serv *BatchService
 	serv, err = createBatchService(sourceInfo, endpointInfo, pipeline, runtime)

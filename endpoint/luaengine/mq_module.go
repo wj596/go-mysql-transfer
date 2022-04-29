@@ -37,7 +37,7 @@ func mqModuleLoader(L *lua.LState) int {
 }
 
 var _mqApi = map[string]lua.LGFunction{
-	"SEND": msgSend,
+	"send": msgSend,
 }
 
 func msgSend(L *lua.LState) int {

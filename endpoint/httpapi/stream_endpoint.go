@@ -45,7 +45,7 @@ func (s *StreamEndpoint) Stream(requests []*bo.RowEventRequest) error {
 		}
 
 		if ctx.IsLuaEnable() {
-			err := s.endpoint.parseByLua(request, ctx, nil)
+			err := s.endpoint.parseByLua(request, ctx, ctx.GetLuaVM())
 			if err != nil {
 				return err
 			}

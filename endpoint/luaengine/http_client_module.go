@@ -19,12 +19,12 @@
 package luaengine
 
 import (
-	"bytes"
-	"github.com/yuin/gopher-lua"
-	"go-mysql-transfer/domain/constants"
-	"go-mysql-transfer/util/byteutil"
-	"io/ioutil"
 	"net/http"
+
+	"github.com/yuin/gopher-lua"
+
+	"go-mysql-transfer/domain/constants"
+	"go-mysql-transfer/util/httputils"
 )
 
 var _httpClient = &http.Client{Timeout: constants.HttpTimeout}
@@ -41,10 +41,10 @@ func httpClientModuleLoader(L *lua.LState) int {
 }
 
 var _httpClientApi = map[string]lua.LGFunction{
-	"GET":    doGet,
-	"DELETE": doDelete,
-	"POST":   doPost,
-	"PUT":    doPut,
+	"get":    doGet,
+	"delete ": doDelete,
+	"post":   doPost,
+	"put":    doPut,
 }
 
 func doGet(L *lua.LState) int {
@@ -52,37 +52,20 @@ func doGet(L *lua.LState) int {
 	url := L.CheckString(1)
 	headers := L.CheckTable(2)
 
-	request, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
-		L.Push(result)
-		return 1
-	}
-
+	request := httputils.R()
 	headers.ForEach(func(k lua.LValue, v lua.LValue) {
-		request.Header.Add(LvToString(k), LvToString(v))
+		request.AddHeader(LvToString(k), LvToString(v))
 	})
 
-	var response *http.Response
-	response, err = _httpClient.Do(request)
-	if err != nil {
-		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
-		L.Push(result)
-		return 1
-	}
-	defer response.Body.Close()
-
-	var data []byte
-	data, err = ioutil.ReadAll(response.Body)
+	response, err := request.Get(url)
 	if err != nil {
 		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
 		L.Push(result)
 		return 1
 	}
 
-	result.RawSet(lua.LString("status_code"), lua.LNumber(response.StatusCode))
-	result.RawSet(lua.LString("body"), lua.LString(byteutil.BytesToString(data)))
-
+	result.RawSet(lua.LString("status_code"), lua.LNumber(response.StatusCode()))
+	result.RawSet(lua.LString("body"), lua.LString(response.ToString()))
 	L.Push(result)
 	return 1
 }
@@ -92,37 +75,20 @@ func doDelete(L *lua.LState) int {
 	url := L.CheckString(1)
 	headers := L.CheckTable(2)
 
-	request, err := http.NewRequest(http.MethodDelete, url, nil)
-	if err != nil {
-		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
-		L.Push(result)
-		return 1
-	}
-
+	request := httputils.R()
 	headers.ForEach(func(k lua.LValue, v lua.LValue) {
-		request.Header.Add(LvToString(k), LvToString(v))
+		request.AddHeader(LvToString(k), LvToString(v))
 	})
 
-	var response *http.Response
-	response, err = _httpClient.Do(request)
-	if err != nil {
-		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
-		L.Push(result)
-		return 1
-	}
-	defer response.Body.Close()
-
-	var data []byte
-	data, err = ioutil.ReadAll(response.Body)
+	response, err := request.Delete(url)
 	if err != nil {
 		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
 		L.Push(result)
 		return 1
 	}
 
-	result.RawSet(lua.LString("status_code"), lua.LNumber(response.StatusCode))
-	result.RawSet(lua.LString("body"), lua.LString(byteutil.BytesToString(data)))
-
+	result.RawSet(lua.LString("status_code"), lua.LNumber(response.StatusCode()))
+	result.RawSet(lua.LString("body"), lua.LString(response.ToString()))
 	L.Push(result)
 	return 1
 }
@@ -145,38 +111,28 @@ func doPost(L *lua.LState) int {
 		return 1
 	}
 
-	data := LvToByteArray(body)
-	request, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
+	data, err := LvToMap(body)
 	if err != nil {
 		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
 		L.Push(result)
 		return 1
 	}
 
+	request := httputils.R()
 	headers.ForEach(func(k lua.LValue, v lua.LValue) {
-		request.Header.Add(LvToString(k), LvToString(v))
+		request.AddHeader(LvToString(k), LvToString(v))
 	})
-	request.Header.Add("Content-Type", "application/json")
 
-	var response *http.Response
-	response, err = _httpClient.Do(request)
-	if err != nil {
-		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
-		L.Push(result)
-		return 1
-	}
-	defer response.Body.Close()
-
-	data, err = ioutil.ReadAll(response.Body)
+	var response *httputils.HttpResponse
+	response, err = request.SetJson(data).Post(url)
 	if err != nil {
 		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
 		L.Push(result)
 		return 1
 	}
 
-	result.RawSet(lua.LString("status_code"), lua.LNumber(response.StatusCode))
-	result.RawSet(lua.LString("body"), lua.LString(byteutil.BytesToString(data)))
-
+	result.RawSet(lua.LString("status_code"), lua.LNumber(response.StatusCode()))
+	result.RawSet(lua.LString("body"), lua.LString(response.ToString()))
 	L.Push(result)
 	return 1
 }
@@ -199,38 +155,28 @@ func doPut(L *lua.LState) int {
 		return 1
 	}
 
-	data := LvToByteArray(body)
-	request, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(data))
+	data, err := LvToMap(body)
 	if err != nil {
 		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
 		L.Push(result)
 		return 1
 	}
 
+	request := httputils.R()
 	headers.ForEach(func(k lua.LValue, v lua.LValue) {
-		request.Header.Add(LvToString(k), LvToString(v))
+		request.AddHeader(LvToString(k), LvToString(v))
 	})
-	request.Header.Add("Content-Type", "application/json")
 
-	var response *http.Response
-	response, err = _httpClient.Do(request)
-	if err != nil {
-		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
-		L.Push(result)
-		return 1
-	}
-	defer response.Body.Close()
-
-	data, err = ioutil.ReadAll(response.Body)
+	var response *httputils.HttpResponse
+	response, err = request.SetJson(data).Put(url)
 	if err != nil {
 		result.RawSet(lua.LString("error"), lua.LString(err.Error()))
 		L.Push(result)
 		return 1
 	}
 
-	result.RawSet(lua.LString("status_code"), lua.LNumber(response.StatusCode))
-	result.RawSet(lua.LString("body"), lua.LString(byteutil.BytesToString(data)))
-
+	result.RawSet(lua.LString("status_code"), lua.LNumber(response.StatusCode()))
+	result.RawSet(lua.LString("body"), lua.LString(response.ToString()))
 	L.Push(result)
 	return 1
 }

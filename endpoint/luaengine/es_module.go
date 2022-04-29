@@ -38,9 +38,9 @@ func esModuleLoader(L *lua.LState) int {
 }
 
 var _esApi = map[string]lua.LGFunction{
-	"INSERT": esInsert,
-	"UPDATE": esUpdate,
-	"DELETE": esDelete,
+	"insert": esInsert,
+	"update": esUpdate,
+	"delete": esDelete,
 }
 
 func esInsert(L *lua.LState) int {

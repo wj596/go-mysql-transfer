@@ -36,6 +36,7 @@ import (
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/endpoint"
 	"go-mysql-transfer/endpoint/luaengine"
+	"go-mysql-transfer/util/commons"
 	"go-mysql-transfer/util/log"
 )
 
@@ -50,6 +51,7 @@ type BatchService struct {
 	endpoint       endpoint.IBatchEndpoint
 	ruleContexts   map[string]*bo.RuleContext
 	connectionPool *datasource.ConnectionPool
+	dataSourceName string
 	bulkSize       int64
 	coroutines     int
 	statements     map[string]string
@@ -85,7 +87,7 @@ func createBatchService(sourceInfo *po.SourceInfo, endpointInfo *po.EndpointInfo
 		}
 
 		var context *bo.RuleContext
-		context, err = bo.CreateRuleContext(pipeline, rule, tableInfo, false)
+		context, err = bo.CreateRuleContext(pipeline, rule, tableInfo)
 		if err != nil {
 			break
 		}
@@ -110,6 +112,7 @@ func createBatchService(sourceInfo *po.SourceInfo, endpointInfo *po.EndpointInfo
 
 	batchService := &BatchService{
 		shutoff:        atomic.NewBool(false),
+		dataSourceName: commons.GetDataSourceName(sourceInfo.GetUsername(), sourceInfo.GetPassword(), sourceInfo.GetHost(), "%s", sourceInfo.GetPort(), sourceInfo.GetCharset()),
 		endpoint:       endpoint.NewBatchEndpoint(endpointInfo),
 		ruleContexts:   contexts,
 		connectionPool: connectionPool,
@@ -282,6 +285,7 @@ func (s *BatchService) getOrCreateLuaVM(key string, ctx *bo.RuleContext) (*lua.L
 		vm.Close()
 		return nil, err
 	}
+	vm.SetGlobal(luaengine.GlobalDataSourceName, lua.LString(s.dataSourceName))
 	s.luaVMs[key] = vm
 	return vm, nil
 }

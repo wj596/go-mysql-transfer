@@ -19,12 +19,12 @@
 package luaengine
 
 import (
-	"go-mysql-transfer/domain/constants"
 	"sync"
 
 	"github.com/layeh/gopher-json"
 	"github.com/yuin/gopher-lua"
 
+	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/util/log"
 )
 
@@ -73,6 +73,7 @@ func New(endpointType uint32) *lua.LState {
 
 	json.Preload(L)     //加载json模块
 	preloadLogModule(L) //加载log模块
+	preloadDatabaseClientModule(L) //加载database模块
 
 	switch endpointType {
 	case constants.EndpointTypeRedis:
@@ -87,6 +88,8 @@ func New(endpointType uint32) *lua.LState {
 		preloadMQModule(L)
 	case constants.EndpointTypeElasticsearch:
 		preloadESModule(L)
+	case constants.EndpointTypeHttp:
+		preloadHttpClientModule(L)
 	}
 
 	//L.PreloadModule("scriptOps", scriptModule)

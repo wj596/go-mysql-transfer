@@ -20,23 +20,18 @@ package filter
 
 import (
 	"github.com/gin-gonic/gin"
-
-	"go-mysql-transfer/config"
-	"go-mysql-transfer/domain/constants"
-	"go-mysql-transfer/util/httputils"
-	"go-mysql-transfer/util/stringutils"
 )
 
 // SignFilter 签名验证中间件
 func SignFilter() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		timestamp := c.Request.Header.Get(constants.HeaderParamTimestamp)
-		sign := c.Request.Header.Get(constants.HeaderParamSign)
-		std := httputils.Sign(stringutils.ToInt64Safe(timestamp), config.GetIns().SecretKey)
-		if sign != std {
-			c.AbortWithStatus(401)
-			return
-		}
+		//timestamp := c.Request.Header.Get(constants.HeaderParamTimestamp)
+		//sign := c.Request.Header.Get(constants.HeaderParamSign)
+		//std := httputils.Sign(stringutils.ToInt64Safe(timestamp), config.GetIns().SecretKey)
+		//if sign != std {
+		//	c.AbortWithStatus(401)
+		//	return
+		//}
 
 		c.Next()
 	}

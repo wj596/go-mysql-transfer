@@ -1,4 +1,4 @@
-package byteutil
+package byteutils
 
 import "testing"
 import "fmt"

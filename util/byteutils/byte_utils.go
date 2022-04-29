@@ -16,7 +16,7 @@
  * </p>
  */
 
-package byteutil
+package byteutils
 
 import (
 	"bytes"

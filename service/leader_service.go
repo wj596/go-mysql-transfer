@@ -196,7 +196,7 @@ func (s *LeaderService) StopStream(pipelineId uint64) error {
 
 func (s *LeaderService) GetFollowerRuntime(pipelineId uint64, node string) (*vo.PipelineRuntimeVO, error) {
 	url := fmt.Sprintf(_getFollowerRuntimeUrl, node, pipelineId)
-	body, err := httputils.Get(url, config.GetIns().GetSecretKey())
+	body, err := httputils.Get(url, httputils.SignWithKey(config.GetIns().GetSecretKey()))
 	if err != nil {
 		log.Errorf("LeaderService获取节点[%s]运行时状态失败[%s]", node, err.Error())
 		return nil, err
@@ -228,7 +228,7 @@ func (s *LeaderService) onSyncEvent(event *bo.SyncEvent) {
 	actives := s.GetActiveFollowers()
 	for _, follower := range actives {
 		url := fmt.Sprintf(_sendSyncEventUrl, follower.Addr)
-		err := httputils.Post(url, config.GetIns().GetSecretKey(), event)
+		err := httputils.Post(url, event, httputils.SignWithKey(config.GetIns().GetSecretKey()))
 		if err != nil {
 			log.Errorf("数据同步事件发送失败[%s], 从节点地址[%s]", err.Error(), url)
 		} else {

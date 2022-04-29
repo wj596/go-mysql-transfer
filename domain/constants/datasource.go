@@ -22,3 +22,9 @@ const (
 	SourceInfoStatusEnable  = 0 //启用
 	SourceInfoStatusDisable = 9 //停用
 )
+
+const (
+	FlavorMysql  = "mysql"
+	FlavorMariadb  = "mariadb"
+)
+

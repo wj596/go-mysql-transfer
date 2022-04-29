@@ -28,7 +28,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go-mysql-transfer/config"
-	"go-mysql-transfer/util/byteutil"
+	"go-mysql-transfer/util/byteutils"
 	"go-mysql-transfer/util/fileutils"
 	"go-mysql-transfer/util/nodepath"
 )
@@ -124,7 +124,7 @@ func doSelectIdList(bucket []byte) ([]uint64, error) {
 		bt := tx.Bucket(bucket)
 		cursor := bt.Cursor()
 		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
-			ids = append(ids, byteutil.BytesToUint64(k))
+			ids = append(ids, byteutils.BytesToUint64(k))
 		}
 		return nil
 	})

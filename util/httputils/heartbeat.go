@@ -6,7 +6,6 @@ import (
 
 	"github.com/juju/errors"
 
-	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/util/stringutils"
 )
 
@@ -35,8 +34,8 @@ func NewHeartbeat(url, secretKey string) *Heartbeat {
 func (s *Heartbeat) Do() error {
 	timestamp := time.Now().UnixNano() / 1e6
 	sign := Sign(timestamp, s.secretKey)
-	s.request.Header.Add(constants.HeaderParamTimestamp, stringutils.ToString(timestamp))
-	s.request.Header.Add(constants.HeaderParamSign, sign)
+	s.request.Header.Add(HeaderParamTimestamp, stringutils.ToString(timestamp))
+	s.request.Header.Add(HeaderParamSign, sign)
 
 	response, err := Client.Do(s.request)
 	if err != nil {

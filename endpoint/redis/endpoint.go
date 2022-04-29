@@ -292,11 +292,11 @@ func (s *Endpoint) parseByLua(request *bo.RowEventRequest, ctx *bo.RuleContext, 
 
 	event := L.NewTable()
 	row := L.NewTable()
-	luaengine.PaddingLTable(L, row, ctx.GetRow(request))
+	luaengine.PaddingLuaTableWithMap(L, row, ctx.GetRow(request))
 	L.SetTable(event, luaengine.RowKey, row)
 	if canal.UpdateAction == request.Action {
 		preRow := L.NewTable()
-		luaengine.PaddingLTable(L, preRow, ctx.GetPreRow(request))
+		luaengine.PaddingLuaTableWithMap(L, preRow, ctx.GetPreRow(request))
 		L.SetTable(event, luaengine.PreRowKey, preRow)
 	}
 	L.SetTable(event, luaengine.ActionKey, lua.LString(request.Action))

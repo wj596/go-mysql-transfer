@@ -16,45 +16,23 @@
  * </p>
  */
 
-package luaengine
+package httputils
 
-import (
-	"github.com/yuin/gopher-lua"
+const (
+	ContentType = "Content-type"
+	ContentTypeApplicationJson = "application/json;charset=UTF-8"
+	ContentTypeApplicationForm = "application/x-www-form-urlencoded"
 
-	"go-mysql-transfer/util/log"
+	CacheControl = "Cache-Control"
+	CacheControlNoCache = "no-cache"
+
+	Connection = "Connection"
+	ConnectionKeepAlive = "Keep-Alive"
+
+	UserAgent = "User-Agent"
 )
 
-func preloadLogModule(L *lua.LState) {
-	L.PreloadModule("log", logModuleLoader)
-}
-
-func logModuleLoader(L *lua.LState) int {
-	t := L.NewTable()
-	L.SetFuncs(t, logApis)
-	L.Push(t)
-	return 1
-}
-
-var logApis = map[string]lua.LGFunction{
-	"info":  logInfo,
-	"warn":  logWarn,
-	"error": logError,
-}
-
-func logInfo(L *lua.LState) int {
-	msg := L.CheckString(1)
-	log.Info(msg)
-	return 0
-}
-
-func logWarn(L *lua.LState) int {
-	msg := L.CheckString(1)
-	log.Warn(msg)
-	return 0
-}
-
-func logError(L *lua.LState) int {
-	msg := L.CheckString(1)
-	log.Error(msg)
-	return 0
-}
+const (
+	HeaderParamTimestamp = "X-Timestamp"
+	HeaderParamSign      = "X-Sign"
+)

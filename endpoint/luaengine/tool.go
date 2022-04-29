@@ -19,13 +19,12 @@
 package luaengine
 
 import (
-	"github.com/json-iterator/go"
 	"github.com/juju/errors"
 	"github.com/yuin/gopher-lua"
 
-	"go-mysql-transfer/util/byteutil"
+	"go-mysql-transfer/util/byteutils"
+	"go-mysql-transfer/util/jsonutils"
 	"go-mysql-transfer/util/log"
-	"go-mysql-transfer/util/stringutils"
 )
 
 const (
@@ -34,9 +33,10 @@ const (
 	PreRowKey            = lua.LString("PreRow")
 	ActionKey            = lua.LString("Action")
 	GlobalVariableResult = "___RESULT___"
+	GlobalDataSourceName = "___DATA_SOURCE_NAME___"
 )
 
-func PaddingLTable(l *lua.LState, table *lua.LTable, kv map[string]interface{}) {
+func PaddingLuaTableWithMap(l *lua.LState, table *lua.LTable, kv map[string]interface{}) {
 	for k, v := range kv {
 		switch v.(type) {
 		case float64:
@@ -84,9 +84,67 @@ func PaddingLTable(l *lua.LState, table *lua.LTable, kv map[string]interface{}) 
 		case nil:
 			l.SetTable(table, lua.LString(k), lua.LNil)
 		default:
-			jsonValue, _ := jsoniter.Marshal(v)
-			l.SetTable(table, lua.LString(k), lua.LString(jsonValue))
+			data, err := jsonutils.ToJsonByJsoniter(v)
+			if nil != err {
+				log.Error(err.Error())
+			}
+			l.SetTable(table, lua.LString(k), lua.LString(data))
 		}
+	}
+}
+
+func PaddingLuaTableWithValue(l *lua.LState, table *lua.LTable, k string, v interface{}) {
+	switch v.(type) {
+	case float64:
+		ft := v.(float64)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case float32:
+		ft := v.(float32)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case int:
+		ft := v.(int)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case uint:
+		ft := v.(uint)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case int8:
+		ft := v.(int8)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case uint8:
+		ft := v.(uint8)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case int16:
+		ft := v.(int16)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case uint16:
+		ft := v.(uint16)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case int32:
+		ft := v.(int32)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case uint32:
+		ft := v.(uint32)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case int64:
+		ft := v.(int64)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case uint64:
+		ft := v.(uint64)
+		l.SetTable(table, lua.LString(k), lua.LNumber(ft))
+	case string:
+		ft := v.(string)
+		l.SetTable(table, lua.LString(k), lua.LString(ft))
+	case []byte:
+		ft := string(v.([]byte))
+		l.SetTable(table, lua.LString(k), lua.LString(ft))
+	case nil:
+		l.SetTable(table, lua.LString(k), lua.LNil)
+	default:
+		data, err := jsonutils.ToJsonByJsoniter(v)
+		if nil != err {
+			log.Error(err.Error())
+		}
+		l.SetTable(table, lua.LString(k), lua.LString(data))
 	}
 }
 
@@ -116,7 +174,7 @@ func LvToInterface(lv lua.LValue, mapToJson bool) interface{} {
 				ret[toString(key)] = LvToInterface(value, mapToJson)
 			})
 			if mapToJson {
-				data, err := jsoniter.Marshal(ret)
+				data, err := jsonutils.ToJsonByJsoniter(ret)
 				if nil != err {
 					log.Error(err.Error())
 					return nil
@@ -130,7 +188,7 @@ func LvToInterface(lv lua.LValue, mapToJson bool) interface{} {
 				ret = append(ret, LvToInterface(t.RawGetInt(i), mapToJson))
 			}
 			if mapToJson {
-				data, err := jsoniter.Marshal(ret)
+				data, err := jsonutils.ToJsonByJsoniter(ret)
 				if nil != err {
 					log.Error(err.Error())
 					return nil
@@ -174,18 +232,18 @@ func LvToByteArray(lv lua.LValue) []byte {
 		return nil
 	case lua.LTBool:
 		if lua.LVAsBool(lv) {
-			return byteutil.StringToBytes("true")
+			return byteutils.StringToBytes("true")
 		}
-		return byteutil.StringToBytes("false")
+		return byteutils.StringToBytes("false")
 	case lua.LTNumber:
-		return byteutil.StringToBytes(lua.LVAsString(lv))
+		return byteutils.StringToBytes(lua.LVAsString(lv))
 	case lua.LTString:
-		return byteutil.StringToBytes(lua.LVAsString(lv))
+		return byteutils.StringToBytes(lua.LVAsString(lv))
 	case lua.LTTable:
 		ret := LvToInterface(lv, false)
-		return byteutil.ToJsonBytes(ret)
+		return byteutils.ToJsonBytes(ret)
 	default:
-		return byteutil.ToJsonBytes(lv)
+		return byteutils.ToJsonBytes(lv)
 	}
 }
 
@@ -204,7 +262,11 @@ func LvToString(lv lua.LValue) string {
 		return lua.LVAsString(lv)
 	case lua.LTTable:
 		ret := LvToInterface(lv, false)
-		return stringutils.ToJsonString(ret)
+		data, err := jsonutils.ToJsonStringByJsoniter(ret)
+		if nil != err {
+			log.Error(err.Error())
+		}
+		return data
 	default:
 		return lv.String()
 	}

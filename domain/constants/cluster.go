@@ -29,8 +29,3 @@ const (
 	MetadataTypeEndpoint = "endpoint"
 	MetadataTypePipeline = "pipeline"
 )
-
-const (
-	HeaderParamTimestamp = "X-Timestamp"
-	HeaderParamSign      = "X-Sign"
-)

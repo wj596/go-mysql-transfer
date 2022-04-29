@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-	"unsafe"
 
 	"github.com/satori/go.uuid"
 )
@@ -87,12 +86,12 @@ func ToUint64Safe(str string) uint64 {
 	return v
 }
 
-// Uint64转换为String
+// Uint64ToStr Uint64转换为String
 func Uint64ToStr(u uint64) string {
 	return strconv.FormatUint(u, 10)
 }
 
-// 逗号分隔键值对转MAP,类似"name=wangjie,age=20"或者"name=wangjie|age=20"
+// CommasToMap 逗号分隔键值对转MAP,类似"name=wangjie,age=20"或者"name=wangjie|age=20"
 func CommasToMap(base string, sep string) map[string]interface{} {
 	ret := make(map[string]interface{})
 	if "" != base && "" != sep {
@@ -111,31 +110,7 @@ func CommasToMap(base string, sep string) map[string]interface{} {
 	return ret
 }
 
-func ToJsonBytes(v interface{}) []byte {
-	bytes, err := json.Marshal(v)
-	if nil != err {
-		return nil
-	}
-	return bytes
-}
-
-func ToJsonString(v interface{}) string {
-	bytes, err := json.Marshal(v)
-	if nil != err {
-		return ""
-	}
-	return *(*string)(unsafe.Pointer(&bytes))
-}
-
-func ToJsonIndent(v interface{}) string {
-	bytes, err := json.MarshalIndent(v, "", "\t")
-	if nil != err {
-		return ""
-	}
-	return string(bytes)
-}
-
-// url.Values转查询字符串
+// UrlValuesToQueryString url.Values转查询字符串
 func UrlValuesToQueryString(base string, parameters url.Values) string {
 	if len(parameters) == 0 {
 		return base
@@ -154,7 +129,7 @@ func UrlValuesToQueryString(base string, parameters url.Values) string {
 	return base
 }
 
-// map转查询字符串
+// MapToQueryString Map转查询字符串
 func MapToQueryString(base string, parameters map[string]interface{}) string {
 	if len(parameters) == 0 {
 		return base
@@ -179,14 +154,14 @@ func MapToQueryString(base string, parameters map[string]interface{}) string {
 	return buffer.String()
 }
 
-// 是否为邮件格式
+// IsEmailFormat 是否为邮件格式
 func IsEmailFormat(email string) bool {
 	pattern := `\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*`
 	reg := regexp.MustCompile(pattern)
 	return reg.MatchString(email)
 }
 
-// 是否为中文
+// IsChineseChar 是否为中文
 func IsChineseChar(str string) bool {
 	for _, r := range str {
 		if unicode.Is(unicode.Scripts["Han"], r) || (regexp.MustCompile("[\u3002\uff1b\uff0c\uff1a\u201c\u201d\uff08\uff09\u3001\uff1f\u300a\u300b]").MatchString(string(r))) {
@@ -217,19 +192,19 @@ func Case2Camel(name string) string {
 	name = strings.Replace(name, "_", " ", -1)
 	name = strings.Title(name)
 	name = strings.Replace(name, " ", "", -1)
-	return Lcfirst(name)
+	return LowCaseFirst(name)
 }
 
-// Ucfirst 首字母大写
-func Ucfirst(str string) string {
+// Capitalize 首字母大写
+func Capitalize(str string) string {
 	for i, v := range str {
 		return string(unicode.ToUpper(v)) + str[i+1:]
 	}
 	return ""
 }
 
-// Lcfirst 首字母小写
-func Lcfirst(str string) string {
+// LowCaseFirst 首字母小写
+func LowCaseFirst(str string) string {
 	for i, v := range str {
 		return string(unicode.ToLower(v)) + str[i+1:]
 	}
@@ -260,6 +235,22 @@ func ToUint32Safe(str string) uint32 {
 	return uint32(v)
 }
 
+// Connect 字符串拼接
+func Connect(values ...string) string {
+	var sb strings.Builder
+	l := 0
+	for _, v := range values {
+		l += len(v)
+	}
+	sb.Grow(l)
+
+	for _, v := range values {
+		sb.WriteString(v)
+	}
+	return sb.String()
+}
+
+// Join 使用逗号连接
 func Join(vs ...interface{}) string {
 	var b bytes.Buffer
 	for i, v := range vs {
@@ -271,6 +262,7 @@ func Join(vs ...interface{}) string {
 	return b.String()
 }
 
+// JoinWith 使用指定符号连接
 func JoinWith(separator string, vs ...interface{}) string {
 	var b bytes.Buffer
 	for i, v := range vs {
@@ -282,6 +274,7 @@ func JoinWith(separator string, vs ...interface{}) string {
 	return b.String()
 }
 
+// JoinWithUnderline 使用下划线连接
 func JoinWithUnderline(vs ...string) string {
 	var b bytes.Buffer
 	for i, v := range vs {

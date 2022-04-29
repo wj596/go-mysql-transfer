@@ -20,6 +20,9 @@ package service
 
 import (
 	"fmt"
+	lua "github.com/yuin/gopher-lua"
+	"go-mysql-transfer/endpoint/luaengine"
+	"go-mysql-transfer/util/commons"
 	"strings"
 	"sync"
 	"time"
@@ -106,9 +109,17 @@ func createStreamService(sourceInfo *po.SourceInfo, endpointInfo *po.EndpointInf
 		schemas[rule.Schema] = true
 		tables = append(tables, rule.Table)
 		var rc *bo.RuleContext
-		rc, err = bo.CreateRuleContext(pipeline, rule, tableInfo, true)
+		rc, err = bo.CreateRuleContext(pipeline, rule, tableInfo)
 		if err != nil {
 			break
+		}
+		if rc.IsLuaEnable(){
+			err = rc.PreloadLuaVM()//预加载Lua虚拟机
+			if err != nil {
+				break
+			}
+			dataSourceName := commons.GetDataSourceName(sourceInfo.GetUsername(), sourceInfo.GetPassword(), sourceInfo.GetHost(), "%s", sourceInfo.GetPort(), sourceInfo.GetCharset())
+			rc.GetLuaVM().SetGlobal(luaengine.GlobalDataSourceName, lua.LString(dataSourceName))
 		}
 		ruleContexts[strings.ToLower(rule.Schema+"."+rule.Table)] = rc
 	}

@@ -26,7 +26,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/json-iterator/go"
 	"github.com/juju/errors"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/schema"
@@ -36,6 +35,7 @@ import (
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/endpoint/luaengine"
+	"go-mysql-transfer/util/jsonutils"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
 )
@@ -64,13 +64,12 @@ type RuleContext struct {
 	dataExpressionTmpl        *template.Template // 数据表达式模板
 	redisKeyExpressionTmpl    *template.Template //redis KEY模板
 	luaFunctionProto          *lua.FunctionProto // Lua 预编译
-	lvm                       *lua.LState        // Lua 虚拟机
+	luaVM                     *lua.LState        // Lua 虚拟机
 }
 
-func CreateRuleContext(pipeline *po.PipelineInfo, rule *po.Rule, table *schema.Table, preLoadLuaVM bool) (*RuleContext, error) {
+func CreateRuleContext(pipeline *po.PipelineInfo, rule *po.Rule, table *schema.Table) (*RuleContext, error) {
 	// Lua脚本预编译
 	var luaFunctionProto *lua.FunctionProto
-	var lvm *lua.LState
 	if constants.RuleTypeLuaScript == rule.Type {
 		protoName := stringutils.UUID()
 		reader := strings.NewReader(rule.GetLuaScript())
@@ -83,23 +82,10 @@ func CreateRuleContext(pipeline *po.PipelineInfo, rule *po.Rule, table *schema.T
 			log.Error(err.Error())
 			return nil, err
 		}
-		if preLoadLuaVM { //预加载LUA虚拟机
-			L := luaengine.New(pipeline.EndpointType)
-			funcFromProto := L.NewFunctionFromProto(luaFunctionProto)
-			L.Push(funcFromProto)
-			err = L.PCall(0, lua.MultRet, nil)
-			if err != nil {
-				L.Close()
-				log.Error(err.Error())
-				return nil, err
-			}
-			lvm = L
-		}
 	}
 
 	tableFullName := strings.ToLower(rule.Schema + "." + rule.Table)
 	ctx := &RuleContext{
-		lvm:              lvm,
 		luaFunctionProto: luaFunctionProto,
 		pipelineId:       pipeline.Id,
 		pipelineName:     pipeline.Name,
@@ -124,6 +110,20 @@ func CreateRuleContext(pipeline *po.PipelineInfo, rule *po.Rule, table *schema.T
 	}
 
 	return ctx, nil
+}
+
+func (s *RuleContext) PreloadLuaVM() error {
+	L := luaengine.New(s.endpointType)
+	funcFromProto := L.NewFunctionFromProto(s.luaFunctionProto)
+	L.Push(funcFromProto)
+	err := L.PCall(0, lua.MultRet, nil)
+	if err != nil {
+		L.Close()
+		log.Error(err.Error())
+		return err
+	}
+	s.luaVM = L
+	return nil
 }
 
 func (s *RuleContext) GetPrimaryKeyValue(request *RowEventRequest) interface{} {
@@ -229,11 +229,11 @@ func (s *RuleContext) EncodeValue(req *RowEventRequest) (string, error) {
 			kv[p.WrapName] = s.convertColumnData(req.Data[p.ColumnIndex], p)
 		}
 
-		data, err := jsoniter.Marshal(kv)
+		data, err := jsonutils.ToJsonStringByJsoniter(kv)
 		if err != nil {
 			return "", err
 		}
-		return string(data), nil
+		return data, nil
 	}
 
 	//Expression
@@ -272,11 +272,11 @@ func (s *RuleContext) EncodePreValue(req *RowEventRequest) (string, error) {
 			kv[p.WrapName] = s.convertColumnData(req.PreData[p.ColumnIndex], p)
 		}
 
-		data, err := jsoniter.Marshal(kv)
+		data, err := jsonutils.ToJsonStringByJsoniter(kv)
 		if err != nil {
 			return "", err
 		}
-		return string(data), nil
+		return data, nil
 	}
 
 	//Expression
@@ -366,13 +366,13 @@ func (s *RuleContext) GetMongodbCollectionFullName() string {
 
 // GetLuaVM 获取LUA虚拟机
 func (s *RuleContext) GetLuaVM() *lua.LState {
-	return s.lvm
+	return s.luaVM
 }
 
 // CloseLuaVM 关闭LUA虚拟机
 func (s *RuleContext) CloseLuaVM() {
-	if s.IsLuaEnable() && s.lvm != nil {
-		s.lvm.Close()
+	if s.IsLuaEnable() && s.luaVM != nil {
+		s.luaVM.Close()
 	}
 }
 

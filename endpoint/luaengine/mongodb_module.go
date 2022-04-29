@@ -38,10 +38,10 @@ func mongodbModuleLoader(L *lua.LState) int {
 }
 
 var _mongodbApi = map[string]lua.LGFunction{
-	"INSERT": mongodbInsert,
-	"UPDATE": mongodbUpdate,
-	"DELETE": mongodbDelete,
-	"UPSERT": mongodbUpsert,
+	"insert": mongodbInsert,
+	"update": mongodbUpdate,
+	"delete": mongodbDelete,
+	"upsert": mongodbUpsert,
 }
 
 func mongodbInsert(L *lua.LState) int {

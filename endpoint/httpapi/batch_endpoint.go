@@ -19,9 +19,6 @@
 package httpapi
 
 import (
-	"context"
-	"sync"
-
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/yuin/gopher-lua"
 
@@ -45,14 +42,14 @@ func (s *BatchEndpoint) Batch(requests []*bo.RowEventRequest, ctx *bo.RuleContex
 	var messages []*primitive.Message
 	if ctx.IsLuaEnable() {
 		for _, request := range requests {
-			err := s.endpoint.parseByLua(request, ctx, messages, lvm)
+			err := s.endpoint.parseByLua(request, ctx, lvm)
 			if err != nil {
 				return 0, err
 			}
 		}
 	} else {
 		for _, request := range requests {
-			err := s.endpoint.parseByRegular(request, ctx, messages)
+			err := s.endpoint.parseByRegular(request, ctx)
 			if err != nil {
 				return 0, err
 			}
@@ -61,27 +58,6 @@ func (s *BatchEndpoint) Batch(requests []*bo.RowEventRequest, ctx *bo.RuleContex
 
 	if len(messages) == 0 {
 		return 0, nil
-	}
-
-	var callbackErr error
-	var wg sync.WaitGroup
-	wg.Add(1)
-	err := s.endpoint.client.SendAsync(context.Background(),
-		func(ctx context.Context, result *primitive.SendResult, e error) {
-			if e != nil {
-				callbackErr = e
-			}
-			wg.Done()
-		}, messages...)
-
-	if err != nil {
-		return 0, err
-	}
-
-	wg.Wait()
-
-	if callbackErr != nil {
-		return 0, callbackErr
 	}
 
 	return int64(len(messages)), nil

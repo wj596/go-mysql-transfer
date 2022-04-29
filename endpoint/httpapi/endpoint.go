@@ -20,11 +20,8 @@ package httpapi
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/apache/rocketmq-client-go/v2/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -41,6 +38,11 @@ import (
 	"go-mysql-transfer/endpoint/luaengine"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
+)
+
+const (
+	HeaderAuthorization = "Authorization"
+	JwtIssuer           = "go-mysql-transfer"
 )
 
 type Endpoint struct {
@@ -99,13 +101,13 @@ func (s *Endpoint) doPost(body *bo.HttpBody) error {
 	if constants.AuthModeHttpBasic == s.info.GetAuthMode() {
 		temp := s.info.GetUsername() + ":" + s.info.GetPassword()
 		encoding := base64.StdEncoding.EncodeToString([]byte(temp))
-		request.Header.Add("Authorization", "Basic "+encoding)
+		request.Header.Add(HeaderAuthorization, "Basic "+encoding)
 	}
 
 	if constants.AuthModeJWT == s.info.GetAuthMode() {
 		claims := jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(time.Second * time.Duration(s.info.GetJwtExpire())).Unix(),
-			Issuer:    "go-mysql-transfer",
+			Issuer:    JwtIssuer,
 		}
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		var signed string
@@ -113,7 +115,7 @@ func (s *Endpoint) doPost(body *bo.HttpBody) error {
 		if err != nil {
 			return err
 		}
-		request.Header.Add("Authorization", signed)
+		request.Header.Add(HeaderAuthorization, signed)
 	}
 
 	var response *http.Response
@@ -155,14 +157,7 @@ func (s *Endpoint) parseByRegular(request *bo.RowEventRequest, ctx *bo.RuleConte
 	return s.doPost(&message)
 }
 
-func (s *Endpoint) parseByLua(request *bo.RowEventRequest, ctx *bo.RuleContext, lvm *lua.LState) error {
-	var L *lua.LState
-	if lvm != nil {
-		L = lvm
-	} else {
-		L = ctx.GetLuaVM()
-	}
-
+func (s *Endpoint) parseByLua(request *bo.RowEventRequest, ctx *bo.RuleContext, L *lua.LState) error {
 	event := L.NewTable()
 	row := L.NewTable()
 	luaengine.PaddingLTable(L, row, ctx.GetRow(request))
@@ -188,21 +183,8 @@ func (s *Endpoint) parseByLua(request *bo.RowEventRequest, ctx *bo.RuleContext, 
 	}
 
 	result.ForEach(func(k lua.LValue, v lua.LValue) {
-
-		id := luaengine.LvToString(L.GetTable(v, lua.LString("id")))
-		value := luaengine.LvToString(L.GetTable(v, lua.LString("value")))
-
-		L.SetTable(data, lua.LString("headers"), headers)
-		L.SetTable(data, lua.LString("value"), value)
-
-
-		message := &primitive.Message{
-			Topic: topic,
-			Body:  body,
-		}
-
-		log.Infof("管道[%s]、接收端[rocketmq]、事件[%s]、Topic[String]", ctx.GetPipelineName(), request.Action, topic)
-		messages = append(messages, message)
+		statusCode := luaengine.LvToString(L.GetTable(v, lua.LString("status_code")))
+		log.Infof("管道[%s]、接收端[rocketmq]、事件[%s]、statusCode[String]", ctx.GetPipelineName(), request.Action, statusCode)
 	})
 
 	return nil

@@ -2,14 +2,22 @@ package stringutils
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIsChineseChar(t *testing.T) {
-	//println(IsChineseChar("a"))
-	//println(IsChineseChar(","))
-	//println(IsChineseChar("a我b"))
-	//println(IsChineseChar("，"))
+	a := assert.New(t)
+	a.False(IsChineseChar("a"))
+	a.False(IsChineseChar(","))
+	a.True(IsChineseChar("a我b"))
+	a.True(IsChineseChar("，"))
+}
 
-	println(Join(1, 2, 3))
-	println(Join(1))
+func TestToString(t *testing.T) {
+	var f []byte
+	f = nil
+	s := string(f)
+	a := assert.New(t)
+	a.Equal(s,"")
 }

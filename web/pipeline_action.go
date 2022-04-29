@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/asaskevich/govalidator"
-
 	"github.com/gin-gonic/gin"
 	"github.com/juju/errors"
 	"github.com/siddontang/go-mysql/schema"
@@ -35,6 +34,7 @@ import (
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/domain/vo"
 	"go-mysql-transfer/service"
+	"go-mysql-transfer/util/commons"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
 )
@@ -469,6 +469,6 @@ func (s *PipelineInfoAction) padding(v *vo.PipelineInfoVO) {
 		v.SourceName = fmt.Sprintf("%s[%s:%d]", source.Name, source.Host, source.Port)
 	}
 	if endpoint, err := s.endpointService.Get(v.EndpointId); err == nil {
-		v.EndpointName = fmt.Sprintf("%s[%s %s]", endpoint.Name, constants.GetEndpointTypeName(endpoint.Type), endpoint.Addresses)
+		v.EndpointName = fmt.Sprintf("%s[%s %s]", endpoint.Name, commons.GetEndpointTypeName(endpoint.Type), endpoint.Addresses)
 	}
 }

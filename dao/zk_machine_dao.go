@@ -21,7 +21,7 @@ package dao
 import (
 	"github.com/go-zookeeper/zk"
 
-	"go-mysql-transfer/util/byteutil"
+	"go-mysql-transfer/util/byteutils"
 	"go-mysql-transfer/util/nodepath"
 )
 
@@ -41,7 +41,7 @@ func (s *ZkMachineDao) GetId(nodeName string) (uint16, error) {
 		if err != nil {
 			return 0, err
 		}
-		return byteutil.BytesToUint16(d), nil
+		return byteutils.BytesToUint16(d), nil
 	}
 
 	parentPath := nodepath.GetMachineParentNode()
@@ -51,7 +51,7 @@ func (s *ZkMachineDao) GetId(nodeName string) (uint16, error) {
 		return 0, err
 	}
 	n := uint16(len(ls)) + 1
-	data := byteutil.Uint16ToBytes(n)
+	data := byteutils.Uint16ToBytes(n)
 	_, err = _zkConn.Create(path, data, 0, zk.WorldACL(zk.PermAll))
 	if err != nil {
 		return 0, err
