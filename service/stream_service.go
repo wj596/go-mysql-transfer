@@ -20,9 +20,7 @@ package service
 
 import (
 	"fmt"
-	lua "github.com/yuin/gopher-lua"
-	"go-mysql-transfer/endpoint/luaengine"
-	"go-mysql-transfer/util/commons"
+	"go-mysql-transfer/util/jsonutils"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +29,7 @@ import (
 	"github.com/siddontang/go-mysql/canal"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/schema"
+	"github.com/yuin/gopher-lua"
 	"go.uber.org/atomic"
 
 	"go-mysql-transfer/datasource"
@@ -38,7 +37,9 @@ import (
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/endpoint"
+	"go-mysql-transfer/endpoint/lua/luaengine"
 	"go-mysql-transfer/util/log"
+	"go-mysql-transfer/util/sqlutils"
 )
 
 const (
@@ -87,20 +88,48 @@ func createStreamService(sourceInfo *po.SourceInfo, endpointInfo *po.EndpointInf
 	canalConfig.Dump.ExecutionPath = ""
 	canalConfig.Dump.SkipMasterData = false
 
-	for _, rule := range pipeline.Rules {
-		canalConfig.IncludeTableRegex = append(canalConfig.IncludeTableRegex, rule.Schema+"\\."+rule.Table)
-	}
-
 	conn, err := datasource.CreateConnection(sourceInfo)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 
-	schemas := make(map[string]bool)
-	tables := make([]string, 0, len(pipeline.Rules))
-	ruleContexts := make(map[string]*bo.RuleContext, len(pipeline.Rules))
+	rules := make([]*po.Rule, 0)
 	for _, rule := range pipeline.Rules {
+		if !rule.Enable {
+			msg, _ := jsonutils.ToJsonIndent(rule)
+			log.Infof("管道[%s]忽略同步规则[%s]，已停用", pipeline.Name, msg)
+			continue
+		}
+
+		if constants.TableTypeSingle == rule.TableType {
+			rules = append(rules, rule)
+		}
+		if constants.TableTypeList == rule.TableType {
+			for _, table := range rule.TableList {
+				newRule := po.DeepCopyRule(rule)
+				newRule.Table = table
+				rules = append(rules, newRule)
+			}
+		}
+		if constants.TableTypePattern == rule.TableType {
+			list, err := datasource.FilterTableNameList(sourceInfo, rule.Schema, rule.TablePattern)
+			if err != nil {
+				return nil, err
+			}
+			for _, table := range list {
+				newRule := po.DeepCopyRule(rule)
+				newRule.Table = table
+				rules = append(rules, newRule)
+			}
+		}
+	}
+
+	schemas := make(map[string]bool)
+	tables := make([]string, 0, len(rules))
+	ruleContexts := make(map[string]*bo.RuleContext, len(rules))
+
+	for _, rule := range rules {
 		var tableInfo *schema.Table
 		tableInfo, err = conn.GetTable(rule.Schema, rule.Table)
 		if err != nil {
@@ -108,20 +137,24 @@ func createStreamService(sourceInfo *po.SourceInfo, endpointInfo *po.EndpointInf
 		}
 		schemas[rule.Schema] = true
 		tables = append(tables, rule.Table)
+		canalConfig.IncludeTableRegex = append(canalConfig.IncludeTableRegex, rule.Schema+"\\."+rule.Table)
+
 		var rc *bo.RuleContext
 		rc, err = bo.CreateRuleContext(pipeline, rule, tableInfo)
 		if err != nil {
 			break
 		}
-		if rc.IsLuaEnable(){
-			err = rc.PreloadLuaVM()//预加载Lua虚拟机
+		if rc.IsLuaEnable() {
+			L := luaengine.New(endpointInfo.GetType())
+			err = rc.PreloadLuaVM(L) //预加载Lua虚拟机
 			if err != nil {
 				break
 			}
-			dataSourceName := commons.GetDataSourceName(sourceInfo.GetUsername(), sourceInfo.GetPassword(), sourceInfo.GetHost(), "%s", sourceInfo.GetPort(), sourceInfo.GetCharset())
-			rc.GetLuaVM().SetGlobal(luaengine.GlobalDataSourceName, lua.LString(dataSourceName))
+			dataSourceName := sqlutils.GetDataSourceName(sourceInfo.GetUsername(), sourceInfo.GetPassword(), sourceInfo.GetHost(), "%s", sourceInfo.GetPort(), sourceInfo.GetCharset())
+			rc.GetLuaVM().SetGlobal(constants.GlobalDataSourceName, lua.LString(dataSourceName))
 		}
 		ruleContexts[strings.ToLower(rule.Schema+"."+rule.Table)] = rc
+		log.Infof("管道[%s]添加表[%s]同步规则", pipeline.Name, strings.ToLower(rule.Schema+"."+rule.Table))
 	}
 	if err != nil {
 		for _, rc := range ruleContexts {
@@ -149,6 +182,7 @@ func createStreamService(sourceInfo *po.SourceInfo, endpointInfo *po.EndpointInf
 		dumperEnable:              atomic.NewBool(false),
 	}
 
+	log.Infof("管道[%s]共监听[%d]张表", pipeline.Name, len(ruleContexts))
 	_streams[pipeline.Id] = service
 	return service, nil
 }
@@ -168,6 +202,9 @@ func getStreamService(pipelineId uint64) (*StreamService, bool) {
 func streamServiceClose(serv *StreamService) {
 	_lockOfStreams.Lock()
 	defer _lockOfStreams.Unlock()
+
+	serv.handler.flushQueue() //刷新缓冲队列
+	time.Sleep(1 * time.Second)
 
 	serv.endpointMonitorStopSignal <- struct{}{} //关闭客户端监听
 	serv.endpointEnable.Store(false)             //设置客户端不可用状态
@@ -194,6 +231,7 @@ func streamServiceClose(serv *StreamService) {
 	delete(_streams, pipelineId)
 	serv = nil //help GC
 	log.Infof("删除StreamService[%s]", pipelineName)
+
 }
 
 func streamServicePanic(serv *StreamService, cause string) {

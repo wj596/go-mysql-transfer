@@ -35,9 +35,9 @@ import (
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/endpoint"
-	"go-mysql-transfer/endpoint/luaengine"
-	"go-mysql-transfer/util/commons"
+	"go-mysql-transfer/endpoint/lua/luaengine"
 	"go-mysql-transfer/util/log"
+	"go-mysql-transfer/util/sqlutils"
 )
 
 var (
@@ -79,7 +79,36 @@ func createBatchService(sourceInfo *po.SourceInfo, endpointInfo *po.EndpointInfo
 	totals := make(map[string]*atomic.Uint64)
 	contexts := make(map[string]*bo.RuleContext)
 	statements := make(map[string]string)
+
+	rules := make([]*po.Rule, 0)
 	for _, rule := range pipeline.Rules {
+		if !rule.Enable {
+			continue
+		}
+		if constants.TableTypeSingle == rule.TableType {
+			rules = append(rules, rule)
+		}
+		if constants.TableTypeList == rule.TableType {
+			for _, table := range rule.TableList {
+				newRule := po.DeepCopyRule(rule)
+				newRule.Table = table
+				rules = append(rules, newRule)
+			}
+		}
+		if constants.TableTypePattern == rule.TableType {
+			list, err := datasource.FilterTableNameList(sourceInfo, rule.Schema, rule.TablePattern)
+			if err != nil {
+				return nil, err
+			}
+			for _, table := range list {
+				newRule := po.DeepCopyRule(rule)
+				newRule.Table = table
+				rules = append(rules, newRule)
+			}
+		}
+	}
+
+	for _, rule := range rules {
 		var tableInfo *schema.Table
 		tableInfo, err = connectionPool.Get().GetTable(rule.Schema, rule.Table)
 		if err != nil {
@@ -112,7 +141,7 @@ func createBatchService(sourceInfo *po.SourceInfo, endpointInfo *po.EndpointInfo
 
 	batchService := &BatchService{
 		shutoff:        atomic.NewBool(false),
-		dataSourceName: commons.GetDataSourceName(sourceInfo.GetUsername(), sourceInfo.GetPassword(), sourceInfo.GetHost(), "%s", sourceInfo.GetPort(), sourceInfo.GetCharset()),
+		dataSourceName: sqlutils.GetDataSourceName(sourceInfo.GetUsername(), sourceInfo.GetPassword(), sourceInfo.GetHost(), "%s", sourceInfo.GetPort(), sourceInfo.GetCharset()),
 		endpoint:       endpoint.NewBatchEndpoint(endpointInfo),
 		ruleContexts:   contexts,
 		connectionPool: connectionPool,
@@ -121,6 +150,7 @@ func createBatchService(sourceInfo *po.SourceInfo, endpointInfo *po.EndpointInfo
 		bulkSize:       bulkSize,
 		coroutines:     coroutines,
 		pipeline:       pipeline,
+		luaVMs:         make(map[string]*lua.LState),
 	}
 
 	return batchService, err
@@ -129,16 +159,19 @@ func createBatchService(sourceInfo *po.SourceInfo, endpointInfo *po.EndpointInfo
 // 构造SQL
 func buildStatement(ctx *bo.RuleContext) string {
 	orderColumn := ctx.GetRule().GetOrderColumn()
-	tableFullName := ctx.GetTableFullName()
+	if "" == orderColumn {
+		orderColumn = ctx.GetDefaultOrderColumns()
+	}
+
 	tableInfo := ctx.GetTableInfo()
 	if len(tableInfo.PKColumns) == 1 {
 		i := tableInfo.PKColumns[0]
-		pk := tableInfo.GetPKColumn(i).Name
+		pk := tableInfo.Columns[i].Name
 		includes := getSelectColumns("b", ctx)
-		return "select " + includes + " from (select " + pk + " from " + tableFullName + " order by " + orderColumn + " limit %d, %d) a left join " + tableFullName + " b on a." + pk + "=b." + pk
+		return "select " + includes + " from (select " + pk + " from " + ctx.GetBackQuoteTableFullName() + " order by " + orderColumn + " limit %d, %d) a left join " + ctx.GetBackQuoteTableFullName() + " b on a." + pk + "=b." + pk
 	} else {
 		includes := getSelectColumns("", ctx)
-		return "select " + includes + " from " + tableFullName + " order by " + orderColumn + " limit %d, %d"
+		return "select " + includes + " from " + ctx.GetBackQuoteTableFullName() + " order by " + orderColumn + " limit %d, %d"
 	}
 }
 
@@ -170,16 +203,13 @@ func (s *BatchService) startup() error {
 	}
 
 	for _, ctx := range s.ruleContexts {
-		tableFullName := ctx.GetTableFullName()
-
-		if ctx.GetRule().GetOrderColumn() == "" {
-			return errors.Errorf("BatchService[%s], 表[%s]排序列不能为空", ctx.GetPipelineName(), tableFullName)
-		}
-
-		res, err := s.connectionPool.Get().Execute(fmt.Sprintf(_selectCountSql, tableFullName))
+		res, err := s.connectionPool.Get().Execute(fmt.Sprintf(_selectCountSql, ctx.GetBackQuoteTableFullName()))
 		if err != nil {
+			log.Error(err.Error())
 			return err
 		}
+
+		tableFullName := ctx.GetTableFullName()
 		var totalRow int64
 		totalRow, err = res.GetInt(0, 0)
 		res.Close()
@@ -216,14 +246,14 @@ func (s *BatchService) startup() error {
 					var requests []*bo.RowEventRequest
 					requests, err = s.export(processed.Load(), _ctx)
 					if err != nil {
-						log.Error(err.Error())
+						log.Errorf("表[%s]，第[%d]批，导出失败[%s]", _ctx.GetTableFullName(), processed.Load(), err.Error())
 						s.shutoff.Store(true)
 						break
 					}
 
 					err = s.imports(requests, _ctx, _lvm, _counter)
 					if err != nil {
-						log.Error(err.Error())
+						log.Errorf("表[%s]，第[%d]批，导入失败[%s]", _ctx.GetTableFullName(), processed.Load(), err.Error())
 						s.shutoff.Store(true)
 						break
 					}
@@ -262,7 +292,7 @@ func (s *BatchService) Shutdown() {
 		vm.Close()
 	}
 
-	// 告警
+	// 发送通知
 	_alarmService.batchReport(s.pipeline, s.runtime)
 }
 
@@ -285,7 +315,7 @@ func (s *BatchService) getOrCreateLuaVM(key string, ctx *bo.RuleContext) (*lua.L
 		vm.Close()
 		return nil, err
 	}
-	vm.SetGlobal(luaengine.GlobalDataSourceName, lua.LString(s.dataSourceName))
+	vm.SetGlobal(constants.GlobalDataSourceName, lua.LString(s.dataSourceName))
 	s.luaVMs[key] = vm
 	return vm, nil
 }

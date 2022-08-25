@@ -28,10 +28,10 @@ type ClusterNode struct {
 }
 
 type SyncEvent struct {
-	MetadataId   uint64
-	MetadataType string
-	DataVersion  int32
-	Timestamp    int64
+	Id        uint64
+	Type      int32
+	Version   int32
+	Timestamp int64
 }
 
 type AlarmEvent struct {

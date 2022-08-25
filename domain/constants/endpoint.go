@@ -39,3 +39,28 @@ const (
 	AuthModeHttpBasic = 1
 	AuthModeJWT       = 2
 )
+
+func GetEndpointTypeName(endpointType uint32) string {
+	switch endpointType {
+	case EndpointTypeRedis:
+		return "Redis"
+	case EndpointTypeMongoDB:
+		return "MongoDB"
+	case EndpointTypeElasticsearch:
+		return "Elasticsearch"
+	case EndpointTypeClickHouse:
+		return "ClickHouse"
+	case EndpointTypeRocketMQ:
+		return "RocketMQ"
+	case EndpointTypeKafka:
+		return "Kafka"
+	case EndpointTypeRabbitMQ:
+		return "RabbitMQ"
+	case EndpointTypeHttp:
+		return "Http"
+	case EndpointTypeGrpc:
+		return "gRPC"
+	default:
+		return ""
+	}
+}

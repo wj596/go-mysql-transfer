@@ -48,10 +48,11 @@ type AppConfig struct {
 	WebPort   int    `yaml:"web_port"`   // Web端口,默认8060
 	SecretKey string `yaml:"secret_key"` // 签名秘钥
 
-	LoggerConf  *LoggerConfig  `yaml:"logger"`  // 日志配置
-	UserConfigs []*UserConfig  `yaml:"users"`   // 用户配置
-	SmtpConf    *SmtpConfig    `yaml:"smtp"`    // SMTP协议配置
-	ClusterConf *ClusterConfig `yaml:"cluster"` // 集群配置
+	LoggerConf        *LoggerConfig  `yaml:"logger"`              // 日志配置
+	UserConfigs       []*UserConfig  `yaml:"users"`               // 用户配置
+	SmtpConf          *SmtpConfig    `yaml:"smtp"`                // SMTP协议配置
+	ClusterConf       *ClusterConfig `yaml:"cluster"`             // 集群配置
+	RuntimeReportCron string         `yaml:"runtime_report_cron"` // 运行时报告CRON表达式，默认每天18点: 0 0 18 * * ?
 }
 
 func Initialize(fileName string) error {
@@ -104,6 +105,10 @@ func checkConfig(c *AppConfig) error {
 	// Cluster
 	if err := checkClusterConfig(c); err != nil {
 		return errors.Trace(err)
+	}
+
+	if "" == c.RuntimeReportCron {
+		c.RuntimeReportCron = "0 0 18 * * ?"
 	}
 
 	return nil

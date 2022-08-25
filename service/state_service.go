@@ -150,7 +150,7 @@ func (s *PipelineStateService) removeRuntime(pipelineId uint64) {
 }
 
 func (s *PipelineStateService) existState(pipelineId uint64) (bool, error) {
-	return s.dao.Exists(pipelineId)
+	return s.dao.IsExists(pipelineId)
 }
 
 func (s *PipelineStateService) GetState(pipelineId uint64) (*po.PipelineState, error) {

@@ -30,16 +30,15 @@ import (
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/domain/vo"
-	"go-mysql-transfer/util/commons"
 	"go-mysql-transfer/util/dateutils"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/snowflake"
 )
 
 type PipelineInfoService struct {
-	dao         *dao.PipelineInfoDao
-	sourceDao   *dao.SourceInfoDao
-	endpointDao *dao.EndpointInfoDao
+	dao         *dao.CompositePipelineDao
+	sourceDao   *dao.CompositeSourceDao
+	endpointDao *dao.CompositeEndpointDao
 }
 
 func (s *PipelineInfoService) InitStartStreams() error {
@@ -156,7 +155,7 @@ func (s *PipelineInfoService) StartStream(id uint64) error {
 	}
 
 	log.Infof("创建[%s]StreamService,SourceInfo: Addr[%s]、User[%s]、Charset[%s]、Flavor[%s]、ServerID[%d]", pipeline.Name, fmt.Sprintf("%s:%d", sourceInfo.Host, sourceInfo.Port), sourceInfo.Username, sourceInfo.Charset, sourceInfo.Flavor, sourceInfo.SlaveID)
-	log.Infof("创建[%s]StreamService,EndpointInfo: Type[%s]、Addr[%s]、User[%s]", pipeline.Name, commons.GetEndpointTypeName(endpointInfo.GetType()), endpointInfo.GetAddresses(), endpointInfo.GetUsername())
+	log.Infof("创建[%s]StreamService,EndpointInfo: Type[%s]、Addr[%s]、User[%s]", pipeline.Name, constants.GetEndpointTypeName(endpointInfo.GetType()), endpointInfo.GetAddresses(), endpointInfo.GetUsername())
 
 	var serv *StreamService
 	serv, err = createStreamService(sourceInfo, endpointInfo, pipeline, runtime)
@@ -231,7 +230,7 @@ func (s *PipelineInfoService) StartBatch(id uint64) error {
 	}
 
 	log.Infof("创建BatchService[%s],  SourceInfo: Addr[%s]、User[%s]、Charset[%s]、Flavor[%s]、ServerID[%d]", pipeline.Name, fmt.Sprintf("%s:%d", sourceInfo.Host, sourceInfo.Port), sourceInfo.Username, sourceInfo.Charset, sourceInfo.Flavor, sourceInfo.SlaveID)
-	log.Infof("创建BatchService[%s],  EndpointInfo: Type[%s]、Addr[%s]、User[%s]", pipeline.Name, commons.GetEndpointTypeName(endpointInfo.GetType()), endpointInfo.GetAddresses(), endpointInfo.GetUsername())
+	log.Infof("创建BatchService[%s],  EndpointInfo: Type[%s]、Addr[%s]、User[%s]", pipeline.Name, constants.GetEndpointTypeName(endpointInfo.GetType()), endpointInfo.GetAddresses(), endpointInfo.GetUsername())
 
 	var serv *BatchService
 	serv, err = createBatchService(sourceInfo, endpointInfo, pipeline, runtime)
@@ -264,20 +263,19 @@ func (s *PipelineInfoService) Insert(entity *po.PipelineInfo) error {
 	entity.Status = constants.PipelineInfoStatusEnable //初始状态
 
 	if IsClusterAndLeader() {
-		err := s.dao.SyncInsert(entity)
+		err := s.dao.CascadeInsert(entity)
 		if err == nil {
 			s.sendSyncEvent(entity.Id, 0)
 		}
 		return err
 	}
-
 	return s.dao.Save(entity)
 }
 
 func (s *PipelineInfoService) UpdateEntity(entity *po.PipelineInfo) error {
 	entity.UpdateTime = dateutils.NowFormatted()
 	if IsClusterAndLeader() {
-		v, err := s.dao.SyncUpdate(entity)
+		v, err := s.dao.CascadeUpdate(entity)
 		if err == nil {
 			s.sendSyncEvent(entity.Id, v)
 		}
@@ -302,7 +300,7 @@ func (s *PipelineInfoService) UpdateStatus(id uint64, status uint32) error {
 	pipeline.Status = status
 	if IsClusterAndLeader() {
 		var version int32
-		version, err = s.dao.SyncUpdate(pipeline)
+		version, err = s.dao.CascadeUpdate(pipeline)
 		if err == nil {
 			s.sendSyncEvent(pipeline.Id, version)
 		}
@@ -318,7 +316,7 @@ func (s *PipelineInfoService) Delete(id uint64) error {
 	}
 
 	if IsClusterAndLeader() {
-		err := s.dao.SyncDelete(id)
+		err := s.dao.CascadeDelete(id)
 		if err == nil {
 			s.sendSyncEvent(id, -1)
 		}
@@ -330,10 +328,10 @@ func (s *PipelineInfoService) Delete(id uint64) error {
 
 func (s *PipelineInfoService) sendSyncEvent(id uint64, dataVersion int32) {
 	_leaderService.sendEvent(&bo.SyncEvent{
-		MetadataId:   id,
-		MetadataType: constants.MetadataTypePipeline,
-		DataVersion:  dataVersion,
-		Timestamp:    time.Now().Unix(),
+		Id:        id,
+		Type:      constants.SyncEventTypePipeline,
+		Version:   dataVersion,
+		Timestamp: time.Now().Unix(),
 	})
 }
 

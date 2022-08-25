@@ -31,6 +31,10 @@ type PositionService struct {
 }
 
 func (s *PositionService) update(pipelineId uint64, pos mysql.Position) error {
+	if pos.Name == "" && pos.Pos == 0 {
+		return nil
+	}
+
 	err := s.dao.Save(pipelineId, pos)
 	if err != nil {
 		return err

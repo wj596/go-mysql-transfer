@@ -30,9 +30,9 @@ import (
 	"go-mysql-transfer/domain/bo"
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
-	"go-mysql-transfer/endpoint/luaengine"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/logagent"
+	"go-mysql-transfer/util/luautils"
 	"go-mysql-transfer/util/stringutils"
 )
 
@@ -120,20 +120,20 @@ func (s *Endpoint) parseByLua(request *bo.RowEventRequest, ctx *bo.RuleContext, 
 
 	event := L.NewTable()
 	row := L.NewTable()
-	luaengine.PaddingLTable(L, row, ctx.GetRow(request))
-	L.SetTable(event, luaengine.RowKey, row)
+	luautils.PaddingLuaTableWithMap(L, row, ctx.GetRow(request))
+	L.SetTable(event, constants.RowKey, row)
 	if canal.UpdateAction == request.Action {
 		preRow := L.NewTable()
-		luaengine.PaddingLTable(L, preRow, ctx.GetPreRow(request))
-		L.SetTable(event, luaengine.PreRowKey, preRow)
+		luautils.PaddingLuaTableWithMap(L, preRow, ctx.GetPreRow(request))
+		L.SetTable(event, constants.PreRowKey, preRow)
 	}
-	L.SetTable(event, luaengine.ActionKey, lua.LString(request.Action))
+	L.SetTable(event, constants.ActionKey, lua.LString(request.Action))
 
 	result := L.NewTable()
-	L.SetGlobal(luaengine.GlobalVariableResult, result)
+	L.SetGlobal(constants.GlobalVariableResult, result)
 
 	err := L.CallByParam(lua.P{
-		Fn:      L.GetGlobal(luaengine.HandleFunctionName),
+		Fn:      L.GetGlobal(constants.HandleFunctionName),
 		NRet:    0,
 		Protect: true,
 	}, event)
@@ -143,11 +143,11 @@ func (s *Endpoint) parseByLua(request *bo.RowEventRequest, ctx *bo.RuleContext, 
 	}
 
 	result.ForEach(func(k lua.LValue, v lua.LValue) {
-		combine := luaengine.LvToString(k)
+		combine := luautils.LvToString(k)
 		action := combine[0:6]
 		index := combine[7:]
-		id := luaengine.LvToString(L.GetTable(v, lua.LString("id")))
-		value := luaengine.LvToString(L.GetTable(v, lua.LString("value")))
+		id := luautils.LvToString(L.GetTable(v, lua.LString("id")))
+		value := luautils.LvToString(L.GetTable(v, lua.LString("value")))
 
 		switch action {
 		case canal.InsertAction:

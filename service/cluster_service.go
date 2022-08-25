@@ -30,12 +30,9 @@ import (
 )
 
 type ClusterService struct {
-	electionSignal chan bool //选举信号
-
+	electionSignal            chan bool //选举信号
 	electionMonitorStopSignal chan struct{}
 	electionMonitorStarted    *atomic.Bool
-
-	metadataDao dao.MetadataDao
 }
 
 func (s *ClusterService) startup() error {
@@ -65,7 +62,7 @@ func (s *ClusterService) startElectionMonitor() {
 						_followerService = nil
 					}
 
-					s.metadataDao.SyncAll() //同步元数据
+					dao.RefreshMetadata() //同步元数据
 
 					_leaderService = newLeaderService()
 					_leaderService.startup()

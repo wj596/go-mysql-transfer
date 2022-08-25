@@ -19,14 +19,14 @@
 package httputils
 
 const (
-	ContentType = "Content-type"
+	ContentType                = "Content-type"
 	ContentTypeApplicationJson = "application/json;charset=UTF-8"
 	ContentTypeApplicationForm = "application/x-www-form-urlencoded"
 
-	CacheControl = "Cache-Control"
+	CacheControl        = "Cache-Control"
 	CacheControlNoCache = "no-cache"
 
-	Connection = "Connection"
+	Connection          = "Connection"
 	ConnectionKeepAlive = "Keep-Alive"
 
 	UserAgent = "User-Agent"

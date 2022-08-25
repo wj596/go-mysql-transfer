@@ -20,7 +20,6 @@ package vo
 
 import (
 	"fmt"
-
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/util/stringutils"
@@ -59,6 +58,10 @@ type RuleVO struct {
 	ReceiveType                        string                      `json:"receiveType"`
 	Schema                             string                      `json:"schema"`
 	Table                              string                      `json:"table"`
+	TableList                          []string                    `json:"tableList"`
+	TablePattern                       string                      `json:"tablePattern"`
+	PatternMatchedTableList            []string                    `json:"patternMatchedTableList"`
+	TableType                          string                      `json:"tableType"`
 	ColumnNameFormatter                string                      `json:"columnNameFormatter"`
 	ExcludeColumnList                  []string                    `json:"excludeColumnList"`
 	ColumnMappingGroups                []ColumnMappingItem         `json:"columnMappingGroups"`
@@ -93,15 +96,20 @@ type RuleVO struct {
 	HttpReserveRawData bool   `json:"httpReserveRawData"`
 
 	LuaScript string `json:"luaScript"`
+	Enable    bool   `json:"enable"`
 }
 
 func (s *RuleVO) ToPO(endpointType uint32) *po.Rule {
 	if s.Type == constants.RuleTypeLuaScript {
 		rule := &po.Rule{
-			Type:      s.Type,
-			Schema:    s.Schema,
-			Table:     s.Table,
-			LuaScript: s.LuaScript,
+			Type:         s.Type,
+			Schema:       s.Schema,
+			Table:        s.Table,
+			TableList:    s.TableList,
+			TablePattern: s.TablePattern,
+			TableType:    s.TableType,
+			LuaScript:    s.LuaScript,
+			Enable:       s.Enable,
 		}
 
 		if endpointType == constants.EndpointTypeRedis ||
@@ -120,6 +128,9 @@ func (s *RuleVO) ToPO(endpointType uint32) *po.Rule {
 		ReceiveType:         stringutils.ToInt32Safe(s.ReceiveType),
 		Schema:              s.Schema,
 		Table:               s.Table,
+		TableList:           s.TableList,
+		TablePattern:        s.TablePattern,
+		TableType:           s.TableType,
 		ColumnNameFormatter: stringutils.ToInt32Safe(s.ColumnNameFormatter), //列名转换格式 0:列名称转为小写 1:列名称转为大写 2:列名称下划线转驼峰
 		ExcludeColumnList:   s.ExcludeColumnList,                            // 排除掉的列
 		DataEncoder:         stringutils.ToInt32Safe(s.DataEncoder),         //数据编码类型，0: json、 1:表达式
@@ -128,6 +139,7 @@ func (s *RuleVO) ToPO(endpointType uint32) *po.Rule {
 		DatetimeFormatter:   s.DatetimeFormatter,                            //datetime、timestamp类型格式化
 		ReserveCoveredData:  s.ReserveCoveredData,
 		OrderColumn:         s.OrderColumn,
+		Enable:              s.Enable,
 	}
 
 	if nil != s.ColumnMappingGroups && len(s.ColumnMappingGroups) > 0 {
@@ -202,8 +214,12 @@ func (s *RuleVO) FromPO(p *po.Rule, endpointType uint32) {
 	}
 	s.Schema = p.Schema
 	s.Table = p.Table
+	s.TableList = p.TableList
+	s.TablePattern = p.TablePattern
+	s.TableType = p.TableType
 	s.ReserveCoveredData = p.ReserveCoveredData
-	s.Key = fmt.Sprintf("%s.%s", p.Schema, p.Table)
+	s.Enable = p.Enable
+	s.Key = fmt.Sprintf("%s.%s", p.Schema, stringutils.UUID())
 
 	if p.Type == constants.RuleTypeLuaScript {
 		s.LuaScript = p.LuaScript

@@ -20,12 +20,13 @@ package config
 
 // ClusterConfig 集群配置
 type ClusterConfig struct {
-	BindIp           string `yaml:"bind_ip"` //绑定IP
-	ZkAddrs          string `yaml:"zk_addrs"`
-	ZkAuthentication string `yaml:"zk_authentication"`
-	EtcdAddrs        string `yaml:"etcd_addrs"`
-	EtcdUser         string `yaml:"etcd_user"`
-	EtcdPassword     string `yaml:"etcd_password"`
+	BindIp              string `yaml:"bind_ip"` //绑定IP
+	ZkAddrs             string `yaml:"zk_addrs"`
+	ZkAuthentication    string `yaml:"zk_authentication"`
+	EtcdAddrs           string `yaml:"etcd_addrs"`
+	EtcdUser            string `yaml:"etcd_user"`
+	EtcdPassword        string `yaml:"etcd_password"`
+	MysqlDataSourceName string `yaml:"mysql_data_source_name"`
 }
 
 func (c *ClusterConfig) GetBindIp() string {
@@ -50,4 +51,8 @@ func (c *ClusterConfig) GetEtcdUser() string {
 
 func (c *ClusterConfig) GetEtcdPassword() string {
 	return c.EtcdPassword
+}
+
+func (c *ClusterConfig) GetMysqlDataSourceName() string {
+	return c.MysqlDataSourceName
 }

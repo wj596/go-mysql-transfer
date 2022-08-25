@@ -39,6 +39,17 @@ func Initialize() error {
 	gin.SetMode(gin.ReleaseMode)
 	handler := gin.New()
 	{
+
+		//handler.Use(filter.CorsFilter())
+		//handler.LoadHTMLFiles(fileutils.GetCurrentDirectory()+"/ui/index.html")
+		//handler.StaticFile("/favicon.ico", fileutils.GetCurrentDirectory()+"/ui/favicon.ico")
+		//handler.StaticFile("/_app.config.js", fileutils.GetCurrentDirectory()+"/ui/_app.config.js")
+		//handler.StaticFS("/assets", http.Dir(fileutils.GetCurrentDirectory()+"/ui/assets"))
+		//handler.StaticFS("/resource", http.Dir(fileutils.GetCurrentDirectory()+"/ui/resource"))
+		//handler.GET("/", func(c *gin.Context) {
+		//	c.HTML(http.StatusOK, "index.html", gin.H{})
+		//})
+
 		handler.Use(filter.CorsFilter())
 		handler.LoadHTMLFiles("D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\index.html")
 		handler.StaticFile("/favicon.ico", "D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\favicon.ico")
@@ -48,6 +59,8 @@ func Initialize() error {
 		handler.GET("/", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "index.html", gin.H{})
 		})
+
+
 	}
 
 	ui := handler.Group("/ui")

@@ -27,15 +27,13 @@ import (
 )
 
 type StreamEndpoint struct {
-	endpoint *Endpoint
+	parent   *Endpoint
 	pipeline redis.Pipeliner
 }
 
 func NewStreamEndpoint(info *po.EndpointInfo) *StreamEndpoint {
 	return &StreamEndpoint{
-		endpoint: &Endpoint{
-			info: info,
-		},
+		parent: NewEndpoint(info),
 	}
 }
 
@@ -49,12 +47,12 @@ func (s *StreamEndpoint) Stream(requests []*bo.RowEventRequest) error {
 		}
 
 		if ctx.IsLuaEnable() {
-			err = s.endpoint.parseByLua(request, ctx, s.pipeline, nil)
+			err = s.parent.parseByLua(request, ctx, s.pipeline, nil)
 			if err != nil {
 				return err
 			}
 		} else {
-			err = s.endpoint.parseByRegular(request, ctx, s.pipeline)
+			err = s.parent.parseByRegular(request, ctx, s.pipeline)
 			if err != nil {
 				return err
 			}
@@ -66,18 +64,18 @@ func (s *StreamEndpoint) Stream(requests []*bo.RowEventRequest) error {
 }
 
 func (s *StreamEndpoint) Connect() error {
-	err := s.endpoint.Connect()
+	err := s.parent.Connect()
 	if err == nil {
-		s.pipeline = s.endpoint.createPipeline()
+		s.pipeline = s.parent.createPipeline()
 	}
 	return err
 }
 
 func (s *StreamEndpoint) Ping() error {
-	return s.endpoint.Ping()
+	return s.parent.Ping()
 }
 
 func (s *StreamEndpoint) Close() {
 	s.pipeline.Close()
-	s.endpoint.Close()
+	s.parent.Close()
 }

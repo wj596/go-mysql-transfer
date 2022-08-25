@@ -31,7 +31,7 @@ import (
 )
 
 type SourceInfoService struct {
-	dao *dao.SourceInfoDao
+	dao *dao.CompositeSourceDao
 }
 
 func (s *SourceInfoService) Insert(entity *po.SourceInfo) error {
@@ -42,7 +42,7 @@ func (s *SourceInfoService) Insert(entity *po.SourceInfo) error {
 	entity.Id = id
 
 	if IsLeader() {
-		err := s.dao.SyncInsert(entity)
+		err := s.dao.CascadeInsert(entity)
 		if err == nil {
 			s.sendSyncEvent(entity.Id, 0)
 		}
@@ -53,7 +53,7 @@ func (s *SourceInfoService) Insert(entity *po.SourceInfo) error {
 
 func (s *SourceInfoService) Update(entity *po.SourceInfo) error {
 	if IsLeader() {
-		v, err := s.dao.SyncUpdate(entity)
+		v, err := s.dao.CascadeUpdate(entity)
 		if err == nil {
 			s.sendSyncEvent(entity.Id, v)
 		}
@@ -64,7 +64,7 @@ func (s *SourceInfoService) Update(entity *po.SourceInfo) error {
 
 func (s *SourceInfoService) Delete(id uint64) error {
 	if IsLeader() {
-		err := s.dao.SyncDelete(id)
+		err := s.dao.CascadeDelete(id)
 		if err == nil {
 			s.sendSyncEvent(id, -1)
 		}
@@ -75,10 +75,10 @@ func (s *SourceInfoService) Delete(id uint64) error {
 
 func (s *SourceInfoService) sendSyncEvent(id uint64, dataVersion int32) {
 	_leaderService.sendEvent(&bo.SyncEvent{
-		MetadataId:   id,
-		MetadataType: constants.MetadataTypeSource,
-		DataVersion:  dataVersion,
-		Timestamp:    time.Now().Unix(),
+		Id:        id,
+		Type:      constants.SyncEventTypeSource,
+		Version:   dataVersion,
+		Timestamp: time.Now().Unix(),
 	})
 }
 

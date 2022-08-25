@@ -56,6 +56,3 @@ func BenchmarkStrucStd(b *testing.B) {
 	}
 	// 2523744	       476.1 ns/op
 }
-
-
-

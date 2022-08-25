@@ -31,17 +31,14 @@ import (
 )
 
 type BatchEndpoint struct {
-	endpoint        *Endpoint
+	parent          *Endpoint
 	pipelines       map[string]redis.Pipeliner
 	lockOfPipelines sync.RWMutex
 }
 
 func NewBatchEndpoint(info *po.EndpointInfo) *BatchEndpoint {
-	parent := &Endpoint{
-		info: info,
-	}
 	return &BatchEndpoint{
-		endpoint:  parent,
+		parent:    NewEndpoint(info),
 		pipelines: make(map[string]redis.Pipeliner),
 	}
 }
@@ -50,7 +47,7 @@ func (s *BatchEndpoint) Batch(requests []*bo.RowEventRequest, ctx *bo.RuleContex
 	if ctx.IsLuaEnable() {
 		for _, request := range requests {
 			pipeline := s.getPipeline(ctx.GetTableFullName())
-			err := s.endpoint.parseByLua(request, ctx, pipeline, lvm)
+			err := s.parent.parseByLua(request, ctx, pipeline, lvm)
 			if err != nil {
 				return 0, err
 			}
@@ -58,7 +55,7 @@ func (s *BatchEndpoint) Batch(requests []*bo.RowEventRequest, ctx *bo.RuleContex
 	} else {
 		for _, request := range requests {
 			pipeline := s.getPipeline(ctx.GetTableFullName())
-			err := s.endpoint.parseByRegular(request, ctx, pipeline)
+			err := s.parent.parseByRegular(request, ctx, pipeline)
 			if err != nil {
 				log.Errorf(errors.ErrorStack(err))
 				return 0, err
@@ -73,9 +70,12 @@ func (s *BatchEndpoint) Batch(requests []*bo.RowEventRequest, ctx *bo.RuleContex
 		log.Errorf(errors.ErrorStack(err))
 		return 0, err
 	}
+
 	for _, result := range results {
 		if result.Err() == nil {
 			counter++
+		} else {
+			log.Error(result.Err().Error())
 		}
 	}
 
@@ -91,28 +91,28 @@ func (s *BatchEndpoint) getPipeline(tableName string) redis.Pipeliner {
 	}
 
 	s.lockOfPipelines.Lock()
+	defer s.lockOfPipelines.Unlock()
 	pipe, ok = s.pipelines[tableName]
 	if ok {
 		return pipe
 	}
-	pipe = s.endpoint.createPipeline()
+	pipe = s.parent.createPipeline()
 	s.pipelines[tableName] = pipe
-	s.lockOfPipelines.Unlock()
 
 	return pipe
 }
 
 func (s *BatchEndpoint) Connect() error {
-	return s.endpoint.Connect()
+	return s.parent.Connect()
 }
 
 func (s *BatchEndpoint) Ping() error {
-	return s.endpoint.Ping()
+	return s.parent.Ping()
 }
 
 func (s *BatchEndpoint) Close() {
 	for _, pipe := range s.pipelines {
 		pipe.Close()
 	}
-	s.endpoint.Close()
+	s.parent.Close()
 }

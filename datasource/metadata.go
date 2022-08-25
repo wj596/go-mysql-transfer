@@ -20,6 +20,7 @@ package datasource
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/siddontang/go-mysql/mysql"
@@ -27,6 +28,7 @@ import (
 
 	"go-mysql-transfer/domain/bo"
 	"go-mysql-transfer/domain/po"
+	"go-mysql-transfer/util/log"
 )
 
 func SelectSchemaNameList(ds *po.SourceInfo) ([]string, error) {
@@ -56,15 +58,14 @@ func SelectSchemaNameList(ds *po.SourceInfo) ([]string, error) {
 }
 
 func SelectTableNameList(ds *po.SourceInfo, schemaName string) ([]string, error) {
-	con, err := CreateConnection(ds)
+	conn, err := CreateConnection(ds)
 	if err != nil {
 		return nil, err
 	}
-	defer con.Close()
+	defer conn.Close()
 
 	sql := "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' "
-	var res *mysql.Result
-	res, err = con.Execute(fmt.Sprintf(sql, schemaName))
+	res, err := conn.Execute(fmt.Sprintf(sql, schemaName))
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +80,23 @@ func SelectTableNameList(ds *po.SourceInfo, schemaName string) ([]string, error)
 		list = append(list, tableName)
 	}
 	return list, nil
+}
+
+func FilterTableNameList(ds *po.SourceInfo, schemaName, tablePattern string) ([]string, error) {
+	tables, err := SelectTableNameList(ds, schemaName)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]string, 0)
+	for _, table := range tables {
+		matched, _ := regexp.MatchString(tablePattern, table)
+		log.Debugf("TablePattern[%s] TableName[%s], Is Matched[%v]", tablePattern, table, matched)
+		if matched {
+			res = append(res, string([]byte(table)))
+		}
+	}
+	return res, nil
 }
 
 func SelectTableInfo(ds *po.SourceInfo, schemaName, tableName string) (*bo.TableInfo, error) {

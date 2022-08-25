@@ -26,12 +26,12 @@ import (
 	"github.com/siddontang/go-mysql/canal"
 
 	"go-mysql-transfer/domain/po"
-	"go-mysql-transfer/util/commons"
 	"go-mysql-transfer/util/log"
+	"go-mysql-transfer/util/sqlutils"
 )
 
 func TestConnect(ds *po.SourceInfo) error {
-	dataSourceName := commons.GetDataSourceName(ds.GetUsername(), ds.GetPassword(), ds.GetHost(), "mysql", ds.GetPort(), ds.GetCharset())
+	dataSourceName := sqlutils.GetDataSourceName(ds.GetUsername(), ds.GetPassword(), ds.GetHost(), "mysql", ds.GetPort(), ds.GetCharset())
 	db, err := sql.Open(ds.GetFlavor(), dataSourceName)
 	if err != nil {
 		return err

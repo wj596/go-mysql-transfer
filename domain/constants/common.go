@@ -32,25 +32,12 @@ const ( //Redis集群类型
 	RedisGroupTypeCluster  = 2
 )
 
-// use by lua model
-const (
-	ExpireAction            = "expire"
-	UpsertAction            = "upsert"
-	TestAction            = "test"
-
-	LuaGlobalVariableResult = "___RESULT___"
-
-	LuaGlobalVariablePreRow = "___PRE_ROW___"
-	LuaGlobalVariableRow    = "___ROW___"
-	LuaGlobalVariableAction = "___ACTION___"
-)
-
 const (
 	BatchBulkSize         = 100
 	BatchCoroutines       = 3
 	StreamBulkSize        = 100
-	StreamFlushInterval   = 200 //毫秒
-	PositionFlushInterval = time.Duration(3)   //秒
+	StreamFlushInterval   = 200              //毫秒
+	PositionFlushInterval = time.Duration(3) //秒
 )
 
 const (

@@ -69,3 +69,9 @@ const (
 	RedisKeyBuilderColumnValue = 0 //使用列值
 	RedisKeyBuilderExpression  = 1 //表达式
 )
+
+const (
+	TableTypeSingle  = "0" //单个表
+	TableTypeList    = "1" //列表
+	TableTypePattern = "2" //正则表达式
+)

@@ -24,7 +24,6 @@ const (
 )
 
 const (
-	FlavorMysql  = "mysql"
-	FlavorMariadb  = "mariadb"
+	FlavorMysql   = "mysql"
+	FlavorMariadb = "mariadb"
 )
-

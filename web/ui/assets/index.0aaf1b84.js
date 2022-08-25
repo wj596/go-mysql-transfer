@@ -1,1 +1,0 @@
-import{aH as s,aI as t}from"./index.c0a3bc85.js";var a;(function(o){o.DashboardUrl="/dashboards"})(a||(a={}));const n=()=>s.get({url:t(a.DashboardUrl,"counts")}),i=()=>s.get({url:t(a.DashboardUrl,"analysis")});export{i as a,n as g};

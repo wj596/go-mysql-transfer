@@ -76,8 +76,8 @@ func TestPostFormForChain(t *testing.T) {
 	r, err := R().SetForm(P{
 		"test": "test",
 	}).
-	AddHeader("SS","XX").
-	Post("http://httpbin.org/post")
+		AddHeader("SS", "XX").
+		Post("http://httpbin.org/post")
 	a.Nil(err)
 	a.NotEmpty(r)
 	fmt.Println(r.ToIndentJson())

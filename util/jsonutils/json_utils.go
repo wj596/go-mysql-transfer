@@ -26,7 +26,7 @@ import (
 )
 
 // ToJson JSON二进制数组
-func ToJson(v interface{}) ([]byte,error) {
+func ToJson(v interface{}) ([]byte, error) {
 	bytes, err := json.Marshal(v)
 	if nil != err {
 		return nil, err
@@ -37,7 +37,7 @@ func ToJson(v interface{}) ([]byte,error) {
 // ToJsonByJsoniter JSON二进制数组
 // Jsoniter 在key数量较少是MAP序列上有一定优势
 // 参考 json_benchmark_test.go
-func ToJsonByJsoniter(v interface{}) ([]byte,error) {
+func ToJsonByJsoniter(v interface{}) ([]byte, error) {
 	bytes, err := jsoniter.Marshal(v)
 	if nil != err {
 		return nil, err
@@ -46,7 +46,7 @@ func ToJsonByJsoniter(v interface{}) ([]byte,error) {
 }
 
 // ToJsonString JSON字符串
-func ToJsonString(v interface{}) (string,error) {
+func ToJsonString(v interface{}) (string, error) {
 	bytes, err := json.Marshal(v)
 	if nil != err {
 		return "", err
@@ -57,7 +57,7 @@ func ToJsonString(v interface{}) (string,error) {
 // ToJsonStringByJsoniter JSON字符串
 // Jsoniter 在key数量较少是MAP序列上有一定优势
 // 参考 json_benchmark_test.go
-func ToJsonStringByJsoniter(v interface{}) (string,error) {
+func ToJsonStringByJsoniter(v interface{}) (string, error) {
 	bytes, err := jsoniter.Marshal(v)
 	if nil != err {
 		return "", err
@@ -66,7 +66,7 @@ func ToJsonStringByJsoniter(v interface{}) (string,error) {
 }
 
 // ToJsonIndent 转格式化JSON
-func ToJsonIndent(v interface{}) (string,error) {
+func ToJsonIndent(v interface{}) (string, error) {
 	bytes, err := json.MarshalIndent(v, "", "\t")
 	if nil != err {
 		return "", err
@@ -77,7 +77,7 @@ func ToJsonIndent(v interface{}) (string,error) {
 // ToJsonIndentByJsoniter 转格式化JSON
 // Jsoniter 在key数量较少是MAP序列上有一定优势
 // 参考 json_benchmark_test.go
-func ToJsonIndentByJsoniter(v interface{}) (string,error) {
+func ToJsonIndentByJsoniter(v interface{}) (string, error) {
 	bytes, err := jsoniter.MarshalIndent(v, "", "\t")
 	if nil != err {
 		return "", err

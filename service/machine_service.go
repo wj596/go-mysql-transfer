@@ -29,7 +29,7 @@ type MachineService struct {
 }
 
 func (s *MachineService) initSnowflake() error {
-	machineId, err := s.dao.GetId(GetCurrNode())
+	machineId, err := s.dao.GetMachineIndex(GetCurrNode())
 	if err != nil {
 		return err
 	}

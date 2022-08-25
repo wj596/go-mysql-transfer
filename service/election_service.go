@@ -27,10 +27,12 @@ import (
 	"go.etcd.io/etcd/clientv3/concurrency"
 	"go.uber.org/atomic"
 
-	"go-mysql-transfer/dao"
+	"go-mysql-transfer/dao/etcd"
+	"go-mysql-transfer/dao/mysql"
+	"go-mysql-transfer/dao/path"
+	"go-mysql-transfer/dao/zookeeper"
 	"go-mysql-transfer/util/etcdutils"
 	"go-mysql-transfer/util/log"
-	"go-mysql-transfer/util/nodepath"
 )
 
 const _electionNodeTTL = 2 //秒
@@ -56,15 +58,25 @@ type EtcdElectionService struct {
 	leader   *atomic.String
 }
 
+type MySqlElectionService struct {
+	renewalInterval int //续约周期（秒）
+	once            sync.Once
+	selected        *atomic.Bool
+	ensured         *atomic.Bool
+	leader          *atomic.String
+}
+
+//---------zk------------
+
 func (s *ZkElectionService) Elect() error {
-	conn := dao.GetZkConn()
-	path := nodepath.GetElectionNode()
-	_, err := dao.GetZkConn().Create(path, []byte(GetCurrNode()), zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
+	conn := zookeeper.GetConnection()
+	node := path.GetElectionRoot()
+	_, err := conn.Create(node, []byte(GetCurrNode()), zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
 	if err == nil {
 		s.onLeader()
 	} else {
 		var v []byte
-		v, _, err = conn.Get(path)
+		v, _, err = conn.Get(node)
 		if err != nil {
 			return err
 		}
@@ -103,13 +115,13 @@ func (s *ZkElectionService) startConnectionMonitor() {
 		log.Infof("启动Zk连接状态监控")
 		for {
 			select {
-			case event := <-dao.GetZkConnSignal():
+			case event := <-zookeeper.GetConnectionSignal():
 				log.Infof("Zk当前连接状态[%v]", event)
 				if s.selected.Load() {
 					if zk.StateConnecting == event.State {
 						s.connectingAmount.Inc()
 					}
-					if s.connectingAmount.Load() > int64(len(dao.GetZkAddrList())) {
+					if s.connectingAmount.Load() > int64(len(zookeeper.GetAddresses())) {
 						s.downgrading()
 					}
 				}
@@ -129,7 +141,7 @@ func (s *ZkElectionService) startConnectionMonitor() {
 func (s *ZkElectionService) startElectionNodeMonitor() {
 	go func() {
 		log.Info("启动Election节点监控")
-		_, _, ch, _ := dao.GetZkConn().ChildrenW(nodepath.GetElectionNode())
+		_, _, ch, _ := zookeeper.GetConnection().ChildrenW(path.GetElectionRoot())
 		for {
 			select {
 			case childEvent := <-ch:
@@ -161,6 +173,8 @@ func (s *ZkElectionService) GetLeader() string {
 	return s.leader.Load()
 }
 
+//---------etcd------------
+
 func (s *EtcdElectionService) Elect() error {
 	s.doElect()
 	s.ensureFollower()
@@ -170,14 +184,14 @@ func (s *EtcdElectionService) Elect() error {
 func (s *EtcdElectionService) doElect() {
 	go func() {
 		for {
-			session, err := concurrency.NewSession(dao.GetEtcdConn(), concurrency.WithTTL(_electionNodeTTL))
+			session, err := concurrency.NewSession(etcd.GetConnection(), concurrency.WithTTL(_electionNodeTTL))
 			if err != nil {
 				log.Infof("主节点选举失败[%s]", err.Error())
 				return
 			}
 
-			path := nodepath.GetElectionNode()
-			election := concurrency.NewElection(session, path)
+			node := path.GetElectionRoot()
+			election := concurrency.NewElection(session, node)
 			ctx := context.Background()
 			if err = election.Campaign(ctx, GetCurrNode()); err != nil {
 				log.Error(err.Error())
@@ -192,7 +206,7 @@ func (s *EtcdElectionService) doElect() {
 				continue
 			default:
 				s.onLeader()
-				err = etcdutils.UpdateOrCreate(path, election.Key(), dao.GetEtcdOps())
+				err = etcdutils.UpdateOrCreate(node, election.Key(), etcd.GetOperation())
 				if err != nil {
 					log.Error(err.Error())
 					return
@@ -225,15 +239,15 @@ func (s *EtcdElectionService) ensureFollower() {
 			if s.selected.Load() {
 				break
 			}
-			path := nodepath.GetElectionNode()
-			k, _, err := etcdutils.Get(path, dao.GetEtcdOps())
+			node := path.GetElectionRoot()
+			k, _, err := etcdutils.Get(node, etcd.GetOperation())
 			if err != nil {
 				log.Error(err.Error())
 				continue
 			}
 
 			var leader []byte
-			leader, _, err = etcdutils.Get(string(k), dao.GetEtcdOps())
+			leader, _, err = etcdutils.Get(string(k), etcd.GetOperation())
 			if err != nil {
 				log.Error(err.Error())
 				continue
@@ -265,5 +279,71 @@ func (s *EtcdElectionService) IsLeader() bool {
 }
 
 func (s *EtcdElectionService) GetLeader() string {
+	return s.leader.Load()
+}
+
+//---------mysql------------
+
+func (s *MySqlElectionService) Elect() error {
+	affected, err := mysql.UpdateElection(GetCurrNode())
+	if err != nil {
+		return err
+	}
+	if affected > 0 {
+		s.onLeader()
+	} else {
+		leader, _, err := mysql.SelectLeader(s.renewalInterval)
+		if err != nil {
+			return err
+		}
+		s.onFollower(leader)
+	}
+
+	s.once.Do(func() {
+		s.startPreemptiveTask()
+	})
+
+	return nil
+}
+
+func (s *MySqlElectionService) onLeader() {
+	s.selected.Store(true)
+	s.leader.Store(GetCurrNode())
+	_clusterService.electionSignal <- s.selected.Load()
+	log.Infof("当前节点[%s]成为主节点", GetCurrNode())
+}
+
+func (s *MySqlElectionService) onFollower(leader string) {
+	s.selected.Store(false)
+	s.leader.Store(leader)
+	_clusterService.electionSignal <- s.selected.Load()
+	log.Infof("当前节点[%s]成为从节点,主节点为[%s]", GetCurrNode(), leader)
+}
+
+func (s *MySqlElectionService) startPreemptiveTask() {
+	go func() {
+		log.Info("启动Election节点监控")
+		ticker := time.NewTicker(time.Duration(s.renewalInterval) * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				affected, err := mysql.UpdateElection(GetCurrNode())
+				if err != nil || affected <= 0 {
+					if s.selected.Load() {
+						s.onFollower("")
+					}
+					s.Elect()
+				}
+			}
+		}
+	}()
+}
+
+func (s *MySqlElectionService) IsLeader() bool {
+	return s.selected.Load()
+}
+
+func (s *MySqlElectionService) GetLeader() string {
 	return s.leader.Load()
 }

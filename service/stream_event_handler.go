@@ -63,7 +63,6 @@ func newStreamEventHandler(service *StreamService) *StreamEventHandler {
 		temp := (flushInterval / 1000) * 2
 		positionFlushInterval = time.Duration(temp)
 	}
-	log.Infof("StreamEventHandler positionFlushInterval[%d]", positionFlushInterval)
 
 	return &StreamEventHandler{
 		serv:                  service,
@@ -79,6 +78,7 @@ func newStreamEventHandler(service *StreamService) *StreamEventHandler {
 
 func (s *StreamEventHandler) OnRow(e *canal.RowsEvent) error {
 	key := strings.ToLower(e.Table.Schema + "." + e.Table.Name)
+	log.Debugf("OnRow[%s]", key)
 	ctx, exist := s.serv.getRuleContext(key)
 	if !exist {
 		log.Warnf("StreamEventHandler[%s]不存在表[%s]的同步上下文", s.serv.pipeline.Name, key)
@@ -138,16 +138,19 @@ func (s *StreamEventHandler) start() {
 			select {
 			case v := <-s.queue:
 				switch vv := v.(type) {
+				case bo.StreamStopEventRequest:
+					needFlush = true
+					needSavePosition = true
 				case bo.PositionEventRequest:
 					now := time.Now()
+					current = mysql.Position{
+						Name: vv.Name,
+						Pos:  vv.Position,
+					}
 					if vv.Force || now.Sub(lastPositionSaveTime) > s.positionFlushInterval*time.Second {
 						lastPositionSaveTime = now
 						needFlush = true
 						needSavePosition = true
-						current = mysql.Position{
-							Name: vv.Name,
-							Pos:  vv.Position,
-						}
 					}
 				case []*bo.RowEventRequest:
 					sends = append(sends, vv...)
@@ -159,7 +162,6 @@ func (s *StreamEventHandler) start() {
 				log.Infof("StreamEventHandler[%s]停止事件监听", s.pipelineName)
 				return
 			}
-
 			//刷新数据
 			if needFlush && len(sends) > 0 && s.serv.isEndpointEnable() {
 				log.Infof("StreamEventHandler[%s]刷新[%d]条数据", s.pipelineName, len(sends))
@@ -189,6 +191,10 @@ func (s *StreamEventHandler) start() {
 
 func (s *StreamEventHandler) stop() {
 	s.stopSignal <- struct{}{}
+}
+
+func (s *StreamEventHandler) flushQueue() {
+	s.queue <- bo.StreamStopEventRequest{}
 }
 
 func (s *StreamEventHandler) String() string {

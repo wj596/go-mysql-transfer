@@ -44,7 +44,6 @@ type FollowerService struct {
 	eventQueue              chan interface{}
 	eventListenerStopSignal chan struct{}
 	eventListenerStarted    *atomic.Bool
-	metadataDao             dao.MetadataDao
 }
 
 func newFollowerService() *FollowerService {
@@ -57,7 +56,6 @@ func newFollowerService() *FollowerService {
 		eventQueue:              make(chan interface{}, 1024),
 		eventListenerStopSignal: make(chan struct{}, 1),
 		eventListenerStarted:    atomic.NewBool(false),
-		metadataDao:             dao.GetMetadataDao(),
 	}
 }
 
@@ -66,7 +64,7 @@ func (s *FollowerService) AcceptEvent(event interface{}) {
 }
 
 func (s *FollowerService) handleSyncEvent(event *bo.SyncEvent) {
-	s.metadataDao.SyncOne(event.MetadataType, event.MetadataId)
+	dao.OnSyncEvent(event)
 }
 
 func (s *FollowerService) startHeartbeatTask() {

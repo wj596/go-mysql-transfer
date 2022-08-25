@@ -11,6 +11,7 @@ require (
 	github.com/go-gomail/gomail v0.0.0-20160411212932-81ebce5c23df
 	github.com/go-redis/redis v6.15.8+incompatible
 	github.com/go-sql-driver/mysql v1.5.0
+	github.com/go-xorm/xorm v0.7.9
 	github.com/go-zookeeper/zk v1.0.2
 	github.com/json-iterator/go v1.1.9
 	github.com/juju/errors v0.0.0-20200330140219-3fe23663418f
@@ -18,7 +19,7 @@ require (
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/olivere/elastic/v7 v7.0.29
 	github.com/pingcap/log v0.0.0-20191012051959-b742a5d432e9
-	github.com/pkg/errors v0.9.1
+	github.com/robfig/cron v1.2.0
 	github.com/satori/go.uuid v1.2.0
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07
 	github.com/siddontang/go-mysql v1.1.0
@@ -36,6 +37,9 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v2 v2.3.0
 	stathat.com/c/consistent v1.0.0
+)
+
+require (
 	github.com/BurntSushi/toml v0.3.1 // indirect
 	github.com/coreos/go-systemd v0.0.0-20181031085051-9002847aa142 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
@@ -76,6 +80,7 @@ require (
 	github.com/pingcap/parser v0.0.0-20191112053614-3b43b46331d5 // indirect
 	github.com/pingcap/tidb v1.1.0-beta.0.20191115021711-b274eb2079dc // indirect
 	github.com/pingcap/tipb v0.0.0-20191112054303-0b0ad0d4a92e // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
@@ -101,6 +106,8 @@ require (
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	xorm.io/builder v0.3.6 // indirect
+	xorm.io/core v0.7.2-0.20190928055935-90aeac8d08eb // indirect
 )
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.26.0

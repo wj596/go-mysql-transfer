@@ -46,7 +46,8 @@ func Layout(date time.Time, layout string) string {
 }
 
 func TimestampLayout(timestamp int64, layout string) string {
-	t := time.Unix(timestamp, 0).In(loc)
+	//t := time.Unix(timestamp, 0).In(loc)
+	t := time.Unix(timestamp, 0)
 	return t.Format(layout)
 }
 

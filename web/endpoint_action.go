@@ -200,7 +200,7 @@ func (s *EndpointInfoAction) IsRunning(c *gin.Context) {
 				}
 			}
 		} else { //单机
-			if runtime, _ := s.stateService.GetOrCreateRuntime(pipeline.Id); nil!=runtime {
+			if runtime, _ := s.stateService.GetOrCreateRuntime(pipeline.Id); nil != runtime {
 				if constants.PipelineRunStatusRunning == runtime.Status.Load() ||
 					constants.PipelineRunStatusFault == runtime.Status.Load() ||
 					constants.PipelineRunStatusBatching == runtime.Status.Load() {

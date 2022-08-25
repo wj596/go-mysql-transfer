@@ -37,6 +37,12 @@ const (
 	Underline = "_"
 )
 
+// IsNumber 字符串是否数字
+func IsNumber(vs string) bool {
+	_, err := strconv.ParseFloat(vs, 64)
+	return err == nil
+}
+
 // UUID 产生UUID
 func UUID() string {
 	return strings.ReplaceAll(uuid.NewV4().String(), "-", "")
@@ -278,10 +284,10 @@ func JoinWith(separator string, vs ...interface{}) string {
 func JoinWithUnderline(vs ...string) string {
 	var b bytes.Buffer
 	for i, v := range vs {
-		b.WriteString(v)
 		if i > 0 {
 			b.WriteString(Underline)
 		}
+		b.WriteString(v)
 	}
 	return b.String()
 }

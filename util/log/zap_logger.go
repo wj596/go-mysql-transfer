@@ -33,9 +33,10 @@ import (
 )
 
 const (
-	_logLevelInfo  = "info"
-	_logLevelWarn  = "warn"
-	_logLevelError = "error"
+	LevelDebug = "debug"
+	LevelInfo  = "info"
+	LevelWarn  = "warn"
+	LevelError = "error"
 )
 
 func NewZapLogger(config *config.LoggerConfig, options ...zap.Option) (*zap.Logger, error) {
@@ -70,11 +71,11 @@ func NewZapLogger(config *config.LoggerConfig, options ...zap.Option) (*zap.Logg
 func getZapLevel(level string) zapcore.Level {
 	var zapLevel zapcore.Level
 	switch level {
-	case _logLevelInfo:
+	case LevelInfo:
 		zapLevel = zap.InfoLevel
-	case _logLevelWarn:
+	case LevelWarn:
 		zapLevel = zap.WarnLevel
-	case _logLevelError:
+	case LevelError:
 		zapLevel = zap.ErrorLevel
 	default:
 		zapLevel = zap.DebugLevel

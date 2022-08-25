@@ -20,6 +20,7 @@ package web
 
 import (
 	"fmt"
+	"go-mysql-transfer/datasource"
 	"strings"
 
 	"github.com/asaskevich/govalidator"
@@ -34,7 +35,6 @@ import (
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/domain/vo"
 	"go-mysql-transfer/service"
-	"go-mysql-transfer/util/commons"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
 )
@@ -159,6 +159,7 @@ func (s *PipelineInfoAction) DeleteBy(c *gin.Context) {
 
 func (s *PipelineInfoAction) GetBy(c *gin.Context) {
 	id := stringutils.ToUint64Safe(c.Param("id"))
+	isView := c.Query("view")
 	entity, err := s.service.Get(id)
 	if nil != err {
 		log.Errorf("获取数据失败: %s", err.Error())
@@ -167,12 +168,25 @@ func (s *PipelineInfoAction) GetBy(c *gin.Context) {
 	}
 	v := new(vo.PipelineInfoVO)
 	v.FromPO(entity)
-	s.padding(v)
+
+	var source *po.SourceInfo
+	if source, err = s.sourceService.Get(v.SourceId); err == nil {
+		v.SourceName = fmt.Sprintf("%s[%s:%d]", source.Name, source.Host, source.Port)
+	}
+	var endpoint *po.EndpointInfo
+	if endpoint, err = s.endpointService.Get(v.EndpointId); err == nil {
+		v.EndpointName = fmt.Sprintf("%s[%s %s]", endpoint.Name, constants.GetEndpointTypeName(endpoint.Type), endpoint.Addresses)
+	}
+
 	rules := make([]*vo.RuleVO, 0, len(entity.Rules))
 	for _, r := range entity.Rules {
 		rule := new(vo.RuleVO)
 		rule.FromPO(r, entity.EndpointType)
 		rule.PipelineName = entity.Name
+		if "" != isView && rule.TableType == constants.TableTypePattern {
+			list, _ := datasource.FilterTableNameList(source, rule.Schema, rule.TablePattern)
+			rule.PatternMatchedTableList = list
+		}
 		rules = append(rules, rule)
 	}
 	v.Rules = rules
@@ -272,6 +286,26 @@ func (s *PipelineInfoAction) ValidateRule(c *gin.Context) {
 	if err := c.BindJSON(entity); err != nil {
 		log.Errorf("验证失败: %s", errors.ErrorStack(err))
 		Err400(c, err.Error())
+		return
+	}
+
+	if constants.RuleTypeLuaScript == entity.Type {
+		protoName := stringutils.UUID()
+		reader := strings.NewReader(entity.LuaScript)
+		chunk, err := parse.Parse(reader, protoName)
+		if err != nil {
+			log.Errorf("验证失败,Lua脚本错误，无法编译: %s", errors.ErrorStack(err))
+			Err400(c, "Lua脚本编译失败："+err.Error())
+			return
+		}
+		_, err = lua.Compile(chunk, protoName)
+		if err != nil {
+			log.Errorf("验证失败,Lua脚本错误，无法编译: %s", errors.ErrorStack(err))
+			Err400(c, "Lua脚本编译失败："+err.Error())
+			return
+		}
+		chunk = nil
+		RespOK(c)
 		return
 	}
 
@@ -443,24 +477,6 @@ func (s *PipelineInfoAction) ValidateRule(c *gin.Context) {
 		}
 	}
 
-	if constants.RuleTypeLuaScript == entity.Type {
-		protoName := stringutils.UUID()
-		reader := strings.NewReader(entity.LuaScript)
-		chunk, err := parse.Parse(reader, protoName)
-		if err != nil {
-			log.Errorf("验证失败,Lua脚本错误，无法编译: %s", errors.ErrorStack(err))
-			Err400(c, "Lua脚本编译失败："+err.Error())
-			return
-		}
-		_, err = lua.Compile(chunk, protoName)
-		if err != nil {
-			log.Errorf("验证失败,Lua脚本错误，无法编译: %s", errors.ErrorStack(err))
-			Err400(c, "Lua脚本编译失败："+err.Error())
-			return
-		}
-		chunk = nil
-	}
-
 	RespOK(c)
 }
 
@@ -469,6 +485,6 @@ func (s *PipelineInfoAction) padding(v *vo.PipelineInfoVO) {
 		v.SourceName = fmt.Sprintf("%s[%s:%d]", source.Name, source.Host, source.Port)
 	}
 	if endpoint, err := s.endpointService.Get(v.EndpointId); err == nil {
-		v.EndpointName = fmt.Sprintf("%s[%s %s]", endpoint.Name, commons.GetEndpointTypeName(endpoint.Type), endpoint.Addresses)
+		v.EndpointName = fmt.Sprintf("%s[%s %s]", endpoint.Name, constants.GetEndpointTypeName(endpoint.Type), endpoint.Addresses)
 	}
 }

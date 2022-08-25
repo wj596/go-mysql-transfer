@@ -25,7 +25,7 @@ const (
 )
 
 const (
-	MetadataTypeSource   = "source"
-	MetadataTypeEndpoint = "endpoint"
-	MetadataTypePipeline = "pipeline"
+	SyncEventTypeSource   = 1
+	SyncEventTypeEndpoint = 2
+	SyncEventTypePipeline = 3
 )

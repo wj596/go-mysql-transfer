@@ -45,6 +45,7 @@ var (
 
 func main() {
 	configFile := "D:\\newtransfers\\application.yml"
+	//configFile := "application.yml"
 
 	// 初始化Config
 	log.Println(fmt.Sprintf("初始化系统配置：%s", configFile))

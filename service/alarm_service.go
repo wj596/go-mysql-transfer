@@ -27,6 +27,7 @@ import (
 	"go-mysql-transfer/domain/bo"
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
+	"go-mysql-transfer/util/cronutils"
 	"go-mysql-transfer/util/dateutils"
 	"go-mysql-transfer/util/dingtalk"
 	"go-mysql-transfer/util/log"
@@ -34,6 +35,7 @@ import (
 )
 
 type AlarmService struct {
+	scheduler *cronutils.Scheduler
 }
 
 func (s *AlarmService) faultAlarm(pipe *po.PipelineInfo, cause string) {
@@ -192,5 +194,22 @@ func (s *AlarmService) doDingTalk(webhook, secretKey, subject, body string) {
 	err := dingtalk.Send(webhook, secretKey, message)
 	if err != nil {
 		log.Error(err.Error())
+	}
+}
+
+func (s *AlarmService) scheduleRuntimeReport() error {
+	scheduler, err := cronutils.NewFuncScheduler(config.GetIns().RuntimeReportCron, s.runtimeReport)
+	if nil != err {
+		return err
+	}
+	scheduler.Start()
+	log.Infof("RuntimeReport Start Cron[%s]", config.GetIns().RuntimeReportCron)
+	return nil
+}
+
+// streamRuntimeReport 运行报告
+func (s *AlarmService) runtimeReport() {
+	for _, streamService := range _streams {
+		s.streamReport(streamService.pipeline, streamService.runtime)
 	}
 }

@@ -21,7 +21,6 @@ package redis
 import (
 	"bytes"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -32,88 +31,40 @@ import (
 	"go-mysql-transfer/domain/bo"
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
-	"go-mysql-transfer/endpoint/luaengine"
 	"go-mysql-transfer/util/log"
+	"go-mysql-transfer/util/luautils"
 	"go-mysql-transfer/util/stringutils"
 )
 
 type Endpoint struct {
-	info          *po.EndpointInfo
-	singleClient  *redis.Client
-	clusterClient *redis.ClusterClient
+	client *CompositeClient
 }
 
 func NewEndpoint(info *po.EndpointInfo) *Endpoint {
 	return &Endpoint{
-		info: info,
+		client: NewCompositeClient(info),
 	}
 }
 
 func (s *Endpoint) Connect() error {
-	addrs := strings.Split(s.info.GetAddresses(), stringutils.Comma)
-	if len(addrs) > 1 {
-		if s.info.GroupType == constants.RedisGroupTypeSentinel {
-			client := redis.NewFailoverClient(&redis.FailoverOptions{
-				MasterName:    s.info.MasterName,
-				SentinelAddrs: addrs,
-				Password:      s.info.Password,
-				DB:            int(s.info.Database),
-			})
-			s.singleClient = client
-		}
-
-		if s.info.GroupType == constants.RedisGroupTypeCluster {
-			client := redis.NewClusterClient(&redis.ClusterOptions{
-				Addrs:    addrs,
-				Password: s.info.Password,
-			})
-			s.clusterClient = client
-		}
-	} else {
-		client := redis.NewClient(&redis.Options{
-			Addr:     s.info.GetAddresses(),
-			Password: s.info.Password,
-			DB:       int(s.info.Database),
-		})
-		s.singleClient = client
+	err := s.client.Connect()
+	if nil == err {
+		return err
 	}
-
-	if s.singleClient == nil && s.clusterClient == nil {
-		return errors.Errorf("Redis客户端创建失败")
-	}
-
-	return s.Ping()
+	return s.client.Ping()
 }
 
 func (s *Endpoint) Ping() error {
-	var err error
-	if s.singleClient != nil {
-		_, err = s.singleClient.Ping().Result()
-	}
-	if s.clusterClient != nil {
-		_, err = s.clusterClient.Ping().Result()
-	}
-	return err
+	return s.client.Ping()
 }
 
 func (s *Endpoint) Close() {
-	if s.singleClient != nil {
-		s.singleClient.Close()
-	}
-	if s.clusterClient != nil {
-		s.clusterClient.Close()
-	}
+	s.client.Close()
+	s.client = nil
 }
 
 func (s *Endpoint) createPipeline() redis.Pipeliner {
-	var pipe redis.Pipeliner
-	if s.singleClient != nil {
-		pipe = s.singleClient.Pipeline()
-	}
-	if s.clusterClient != nil {
-		pipe = s.clusterClient.Pipeline()
-	}
-	return pipe
+	return s.client.createPipeline()
 }
 
 func (s *Endpoint) encodeKey(raw *bo.RowEventRequest, rule *po.Rule, ctx *bo.RuleContext) (string, error) {
@@ -191,7 +142,7 @@ func (s *Endpoint) parseByRegular(request *bo.RowEventRequest, ctx *bo.RuleConte
 			}
 			pipeline.Set(key, value, 0)
 		}
-		log.Infof("管道[%s] 接收端[redis]、Structure[String]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
+		log.Debugf("管道[%s] 接收端[redis]、Structure[String]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
 	case constants.RedisStructureHash:
 		var field string
 		field, err = s.encodeHashField(request, rule, ctx)
@@ -207,7 +158,7 @@ func (s *Endpoint) parseByRegular(request *bo.RowEventRequest, ctx *bo.RuleConte
 			}
 			pipeline.HSet(key, field, value)
 		}
-		log.Infof("管道[%s] 接收端[redis]、Structure[Hash]、事件[%s]、KEY[%s]、FIELD[%s]", ctx.GetPipelineName(), request.Action, key, field)
+		log.Debugf("管道[%s] 接收端[redis]、Structure[Hash]、事件[%s]、KEY[%s]、FIELD[%s]", ctx.GetPipelineName(), request.Action, key, field)
 	case constants.RedisStructureList:
 		value, err = ctx.EncodeValue(request)
 		if err != nil {
@@ -226,7 +177,7 @@ func (s *Endpoint) parseByRegular(request *bo.RowEventRequest, ctx *bo.RuleConte
 		} else {
 			pipeline.RPush(key, value)
 		}
-		log.Infof("管道[%s] 接收端[redis]、Structure[List]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
+		log.Debugf("管道[%s] 接收端[redis]、Structure[List]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
 	case constants.RedisStructureSet:
 		value, err = ctx.EncodeValue(request)
 		if err != nil {
@@ -245,7 +196,7 @@ func (s *Endpoint) parseByRegular(request *bo.RowEventRequest, ctx *bo.RuleConte
 		} else {
 			pipeline.SAdd(key, value)
 		}
-		log.Infof("管道[%s] 接收端[redis]、Structure[Set]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
+		log.Debugf("管道[%s] 接收端[redis]、Structure[Set]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
 	case constants.RedisStructureSortedSet:
 		value, err = ctx.EncodeValue(request)
 		if err != nil {
@@ -276,7 +227,7 @@ func (s *Endpoint) parseByRegular(request *bo.RowEventRequest, ctx *bo.RuleConte
 			val := redis.Z{Score: score, Member: value}
 			pipeline.ZAdd(key, val)
 		}
-		log.Infof("管道[%s] 接收端[redis]、Structure[SortedSet]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
+		log.Debugf("管道[%s] 接收端[redis]、Structure[SortedSet]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
 	}
 
 	return nil
@@ -292,20 +243,23 @@ func (s *Endpoint) parseByLua(request *bo.RowEventRequest, ctx *bo.RuleContext, 
 
 	event := L.NewTable()
 	row := L.NewTable()
-	luaengine.PaddingLuaTableWithMap(L, row, ctx.GetRow(request))
-	L.SetTable(event, luaengine.RowKey, row)
+	luautils.PaddingLuaTableWithMap(L, row, ctx.GetRow(request))
+	L.SetTable(event, constants.RowKey, row)
 	if canal.UpdateAction == request.Action {
 		preRow := L.NewTable()
-		luaengine.PaddingLuaTableWithMap(L, preRow, ctx.GetPreRow(request))
-		L.SetTable(event, luaengine.PreRowKey, preRow)
+		luautils.PaddingLuaTableWithMap(L, preRow, ctx.GetPreRow(request))
+		L.SetTable(event, constants.PreRowKey, preRow)
 	}
-	L.SetTable(event, luaengine.ActionKey, lua.LString(request.Action))
+	L.SetTable(event, constants.ActionKey, lua.LString(request.Action))
+	L.SetTable(event, constants.SchemaKey, lua.LString(ctx.GetSchema()))
+	L.SetTable(event, constants.TableKey, lua.LString(ctx.GetTableName()))
 
 	result := L.NewTable()
-	L.SetGlobal(luaengine.GlobalVariableResult, result)
+	L.SetGlobal(constants.GlobalVariableResult, result)
+	L.SetGlobal(constants.EndpointKey, lua.LString(s.client.key))
 
 	err := L.CallByParam(lua.P{
-		Fn:      L.GetGlobal(luaengine.HandleFunctionName),
+		Fn:      L.GetGlobal(constants.HandleFunctionName),
 		NRet:    0,
 		Protect: true,
 	}, event)
@@ -315,12 +269,12 @@ func (s *Endpoint) parseByLua(request *bo.RowEventRequest, ctx *bo.RuleContext, 
 	}
 
 	result.ForEach(func(k lua.LValue, v lua.LValue) {
-		combine := luaengine.LvToString(k)
+		combine := luautils.LvToString(k)
 		clen := len(combine)
 		action := combine[0:6]
 		if constants.ExpireAction == action {
 			key := combine[7:clen]
-			value := stringutils.ToInt64Safe(luaengine.LvToString(v))
+			value := stringutils.ToInt64Safe(luautils.LvToString(v))
 			expiration := time.Duration(value)
 			pipeline.Expire(key, expiration*time.Second)
 			return
@@ -333,55 +287,55 @@ func (s *Endpoint) parseByLua(request *bo.RowEventRequest, ctx *bo.RuleContext, 
 			if action == canal.DeleteAction {
 				pipeline.Del(key)
 			} else {
-				value := luaengine.LvToInterface(v, true)
+				value := luautils.LvToInterface(v, true)
 				pipeline.Set(key, value, 0)
 			}
-			log.Infof("管道[%s] 接收端[redis]、Structure[String]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
+			log.Debugf("管道[%s] 接收端[redis]、Structure[String]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
 		case constants.RedisStructureList:
 			key := combine[9:clen]
-			value := luaengine.LvToInterface(v, true)
+			value := luautils.LvToInterface(v, true)
 			if action == canal.DeleteAction {
 				pipeline.LRem(key, 0, value)
 			} else {
 				pipeline.RPush(key, value)
 			}
-			log.Infof("管道[%s] 接收端[redis]、Structure[List]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
+			log.Debugf("管道[%s] 接收端[redis]、Structure[List]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
 		case constants.RedisStructureSet:
 			key := combine[9:clen]
-			value := luaengine.LvToInterface(v, true)
+			value := luautils.LvToInterface(v, true)
 			if action == canal.DeleteAction {
 				pipeline.SRem(key, 0, value)
 			} else {
 				pipeline.SAdd(key, value)
 			}
-			log.Infof("管道[%s] 接收端[redis]、Structure[Set]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
+			log.Debugf("管道[%s] 接收端[redis]、Structure[Set]、事件[%s]、KEY[%s]", ctx.GetPipelineName(), request.Action, key)
 		case constants.RedisStructureHash:
 			luaKey := L.GetTable(v, lua.LString("key"))
 			luaField := L.GetTable(v, lua.LString("field"))
 			key := luaKey.String()
-			field := luaengine.LvToString(luaField)
+			field := luautils.LvToString(luaField)
 			if action == canal.DeleteAction {
 				pipeline.HDel(key, field)
 			} else {
 				luaValue := L.GetTable(v, lua.LString("value"))
-				value := luaengine.LvToInterface(luaValue, true)
+				value := luautils.LvToInterface(luaValue, true)
 				pipeline.HSet(key, field, value)
 			}
-			log.Infof("管道[%s] 接收端[redis]、Structure[Hash]、事件[%s]、KEY[%s]、FIELD[%s]", ctx.GetPipelineName(), action, key, field)
+			log.Debugf("管道[%s] 接收端[redis]、Structure[Hash]、事件[%s]、KEY[%s]、FIELD[%s]", ctx.GetPipelineName(), action, key, field)
 		case constants.RedisStructureSortedSet:
 			luaKey := L.GetTable(v, lua.LString("key"))
 			luaValue := L.GetTable(v, lua.LString("value"))
 			key := luaKey.String()
-			value := luaengine.LvToInterface(luaValue, true)
+			value := luautils.LvToInterface(luaValue, true)
 			if action == canal.DeleteAction {
 				pipeline.ZRem(key, value)
 			} else {
-				luaScore := luaengine.LvToString(L.GetTable(v, lua.LString("score")))
+				luaScore := luautils.LvToString(L.GetTable(v, lua.LString("score")))
 				score := stringutils.ToFloat64Safe(luaScore)
 				z := redis.Z{Score: score, Member: value}
 				pipeline.ZAdd(key, z)
 			}
-			log.Infof("管道[%s] 接收端[redis]、Structure[SortedSet]、事件[%s]、KEY[%s]、FIELD[%s]", ctx.GetPipelineName(), action, key)
+			log.Debugf("管道[%s] 接收端[redis]、Structure[SortedSet]、事件[%s]、KEY[%s]、FIELD[%s]", ctx.GetPipelineName(), action, key)
 		}
 	})
 

@@ -12,7 +12,7 @@ func BenchmarkUnsafeToString(b *testing.B) {
 	mymap["Name3"] = "xxxxxxxxxxxxxxxxxx"
 	mymap["Name"] = "buickxxxxxxxxxxxxxxxxxxxxxxxccee"
 	for i := 0; i < b.N; i++ { //use b.N for looping
-		bytes,_ := ToJson(mymap)
+		bytes, _ := ToJson(mymap)
 		str := *(*string)(unsafe.Pointer(&bytes))
 		if str == "" {
 			b.Fatal()
@@ -27,7 +27,7 @@ func BenchmarkToString(b *testing.B) {
 	mymap["Name3"] = "xxxxxxxxxxxxxxxxxx"
 	mymap["Name"] = "buickxxxxxxxxxxxxxxxxxxxxxxxccee"
 	for i := 0; i < b.N; i++ { //use b.N for looping
-		bytes,_ := ToJson(mymap)
+		bytes, _ := ToJson(mymap)
 		str := string(bytes)
 		if str == "" {
 			b.Fatal()

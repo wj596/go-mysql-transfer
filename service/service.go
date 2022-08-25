@@ -86,6 +86,10 @@ func Initialize() error {
 	}
 
 	_alarmService = &AlarmService{}
+	err := _alarmService.scheduleRuntimeReport()
+	if nil != err {
+		return err
+	}
 
 	if config.GetIns().IsCluster() { //集群
 		curr := fmt.Sprintf("%s:%d", config.GetIns().GetClusterConfig().GetBindIp(), config.GetIns().GetWebPort())
@@ -103,7 +107,6 @@ func Initialize() error {
 			electionSignal:            make(chan bool, 1),
 			electionMonitorStarted:    atomic.NewBool(false),
 			electionMonitorStopSignal: make(chan struct{}, 1),
-			metadataDao:               dao.GetMetadataDao(),
 		}
 
 		if config.GetIns().IsZkUsed() {

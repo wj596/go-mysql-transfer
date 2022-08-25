@@ -34,7 +34,6 @@ import (
 
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
-	"go-mysql-transfer/endpoint/luaengine"
 	"go-mysql-transfer/util/jsonutils"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
@@ -57,7 +56,10 @@ type RuleContext struct {
 	endpointType              uint32
 	rule                      *po.Rule
 	tableInfo                 *schema.Table
+	schema                    string
+	tableName                 string
 	tableFullName             string
+	backQuoteTableFullName    string //mysql 反引号，防止schema或者table名称不规范
 	paddingMap                map[string]*Padding
 	pkPaddings                []*Padding
 	rowSize                   int                //行宽度(字段数量)
@@ -85,14 +87,19 @@ func CreateRuleContext(pipeline *po.PipelineInfo, rule *po.Rule, table *schema.T
 	}
 
 	tableFullName := strings.ToLower(rule.Schema + "." + rule.Table)
+	backQuoteTableFullName := strings.ToLower("`" + rule.Schema + "`.`" + rule.Table + "`")
 	ctx := &RuleContext{
-		luaFunctionProto: luaFunctionProto,
-		pipelineId:       pipeline.Id,
-		pipelineName:     pipeline.Name,
-		rule:             rule,
-		tableInfo:        table,
-		tableFullName:    tableFullName,
-		pkPaddings:       make([]*Padding, 0),
+		luaFunctionProto:       luaFunctionProto,
+		pipelineId:             pipeline.Id,
+		pipelineName:           pipeline.Name,
+		endpointType:           pipeline.EndpointType,
+		rule:                   rule,
+		tableInfo:              table,
+		schema:                 rule.Schema,
+		tableName:              rule.Table,
+		tableFullName:          tableFullName,
+		backQuoteTableFullName: backQuoteTableFullName,
+		pkPaddings:             make([]*Padding, 0),
 	}
 
 	ctx.initPaddingMap()
@@ -112,8 +119,11 @@ func CreateRuleContext(pipeline *po.PipelineInfo, rule *po.Rule, table *schema.T
 	return ctx, nil
 }
 
-func (s *RuleContext) PreloadLuaVM() error {
-	L := luaengine.New(s.endpointType)
+func (s *RuleContext) PreloadLuaVM(L *lua.LState) error {
+	if nil != s.luaVM {
+		return errors.New("Lua虚拟机已初始化")
+	}
+
 	funcFromProto := L.NewFunctionFromProto(s.luaFunctionProto)
 	L.Push(funcFromProto)
 	err := L.PCall(0, lua.MultRet, nil)
@@ -313,8 +323,20 @@ func (s *RuleContext) GetTableInfo() *schema.Table {
 	return s.tableInfo
 }
 
+func (s *RuleContext) GetSchema() string {
+	return s.schema
+}
+
+func (s *RuleContext) GetTableName() string {
+	return s.tableName
+}
+
 func (s *RuleContext) GetTableFullName() string {
 	return s.tableFullName
+}
+
+func (s *RuleContext) GetBackQuoteTableFullName() string {
+	return s.backQuoteTableFullName
 }
 
 func (s *RuleContext) GetTableColumn(column string) (*schema.TableColumn, int) {
@@ -327,8 +349,8 @@ func (s *RuleContext) GetTableColumn(column string) (*schema.TableColumn, int) {
 }
 
 func (s *RuleContext) GetTableColumnIndex(column string) int {
-	for index, _ := range s.tableInfo.Columns {
-		if strings.ToLower(column) == strings.ToLower(column) {
+	for index, v := range s.tableInfo.Columns {
+		if strings.ToLower(v.Name) == strings.ToLower(column) {
 			return index
 		}
 	}
@@ -426,6 +448,21 @@ func (s *RuleContext) initPkPaddings() {
 			s.pkPaddings = append(s.pkPaddings, padding)
 		}
 	}
+}
+
+// GetDefaultOrderColumns 获取默认的排序列
+func (s *RuleContext) GetDefaultOrderColumns() string {
+	orderColumns := ""
+	if len(s.tableInfo.PKColumns) > 0 {
+		for _, index := range s.tableInfo.PKColumns {
+			column := s.tableInfo.Columns[index]
+			if "" != orderColumns {
+				orderColumns = orderColumns + ","
+			}
+			orderColumns = orderColumns + column.Name
+		}
+	}
+	return orderColumns
 }
 
 func (s *RuleContext) toWrapName(column string) string {

@@ -31,7 +31,7 @@ import (
 )
 
 type EndpointInfoService struct {
-	dao *dao.EndpointInfoDao
+	dao *dao.CompositeEndpointDao
 }
 
 func (s *EndpointInfoService) Insert(entity *po.EndpointInfo) error {
@@ -42,7 +42,7 @@ func (s *EndpointInfoService) Insert(entity *po.EndpointInfo) error {
 	entity.Id = id
 
 	if IsLeader() {
-		err := s.dao.SyncInsert(entity)
+		err := s.dao.CascadeInsert(entity)
 		if err == nil {
 			s.sendSyncEvent(entity.Id, 0)
 		}
@@ -53,7 +53,7 @@ func (s *EndpointInfoService) Insert(entity *po.EndpointInfo) error {
 
 func (s *EndpointInfoService) Update(entity *po.EndpointInfo) error {
 	if IsLeader() {
-		v, err := s.dao.SyncUpdate(entity)
+		v, err := s.dao.CascadeUpdate(entity)
 		if err == nil {
 			s.sendSyncEvent(entity.Id, v)
 		}
@@ -64,7 +64,7 @@ func (s *EndpointInfoService) Update(entity *po.EndpointInfo) error {
 
 func (s *EndpointInfoService) Delete(id uint64) error {
 	if IsLeader() {
-		err := s.dao.SyncDelete(id)
+		err := s.dao.CascadeDelete(id)
 		if err == nil {
 			s.sendSyncEvent(id, -1)
 		}
@@ -75,10 +75,10 @@ func (s *EndpointInfoService) Delete(id uint64) error {
 
 func (s *EndpointInfoService) sendSyncEvent(id uint64, dataVersion int32) {
 	_leaderService.sendEvent(&bo.SyncEvent{
-		MetadataId:   id,
-		MetadataType: constants.MetadataTypeEndpoint,
-		DataVersion:  dataVersion,
-		Timestamp:    time.Now().Unix(),
+		Id:        id,
+		Type:      constants.SyncEventTypeEndpoint,
+		Version:   dataVersion,
+		Timestamp: time.Now().Unix(),
 	})
 }
 
