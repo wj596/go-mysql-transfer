@@ -20,12 +20,12 @@ package service
 
 import (
 	"fmt"
+	"go-mysql-transfer/domain/bo"
 	slog "log"
 
 	"go.uber.org/atomic"
 
 	"go-mysql-transfer/dao"
-	"go-mysql-transfer/domain/bo"
 	"go-mysql-transfer/util/log"
 )
 
@@ -57,28 +57,32 @@ func (s *ClusterService) startElectionMonitor() {
 					_leader.Store(GetCurrNode())
 					slog.Println(fmt.Sprintf("当前节点[%s]为主节点", GetCurrNode()))
 
-					if _followerService != nil {
+					if nil != _followerService {
 						_followerService.close()
 						_followerService = nil
 					}
 
 					dao.RefreshMetadata() //同步元数据
 
-					_leaderService = newLeaderService()
-					_leaderService.startup()
-					_leaderService.sendEvent(bo.NewDispatchEvent("主节点启动"))
+					if nil == _leaderService {
+						_leaderService = newLeaderService()
+						_leaderService.startup()
+						_leaderService.sendEvent(bo.NewDispatchEvent("主节点启动"))
+					}
 				} else {
 					_isLeader.Store(false)
-					_leader.Store(_electionService.GetLeader())
+					_leader.Store(_electionService.GetCurrentLeader())
 					slog.Println(fmt.Sprintf("当前节点[%s]为从节点，主节点为[%s]", GetCurrNode(), GetLeader()))
 
-					if _leaderService != nil {
+					if nil != _leaderService {
 						_leaderService.close()
 						_leaderService = nil
 					}
 
-					_followerService = newFollowerService()
-					_followerService.startup()
+					if nil == _followerService {
+						_followerService = newFollowerService()
+						_followerService.startup()
+					}
 				}
 			case <-s.electionMonitorStopSignal:
 				log.Info("ClusterService停止选举监控")

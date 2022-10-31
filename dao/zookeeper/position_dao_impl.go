@@ -22,8 +22,8 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-zookeeper/zk"
-	"github.com/siddontang/go-mysql/mysql"
 
 	"go-mysql-transfer/dao/path"
 	"go-mysql-transfer/util/log"

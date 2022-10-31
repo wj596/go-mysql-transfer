@@ -23,9 +23,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-redis/redis"
 	"github.com/juju/errors"
-	"github.com/siddontang/go-mysql/canal"
 	"github.com/yuin/gopher-lua"
 
 	"go-mysql-transfer/domain/bo"
@@ -48,7 +48,7 @@ func NewEndpoint(info *po.EndpointInfo) *Endpoint {
 
 func (s *Endpoint) Connect() error {
 	err := s.client.Connect()
-	if nil == err {
+	if nil != err {
 		return err
 	}
 	return s.client.Ping()

@@ -19,6 +19,10 @@
 package constants
 
 const (
+	MySQLPreemptiveInterval = 2 //MySQL主节点抢占
+)
+
+const (
 	HeartbeatInterval       = 1 //主从心跳间隔，单位秒
 	HeartbeatTimeout        = 5 //心跳超时时间，单位秒； 超过这个时间没有心跳，说明从节点离线
 	HeartbeatFailureMaximum = 3 //心跳失败最大次数； 超过这个数据量，从接口可以判断自己产生网络分区
@@ -28,4 +32,10 @@ const (
 	SyncEventTypeSource   = 1
 	SyncEventTypeEndpoint = 2
 	SyncEventTypePipeline = 3
+)
+
+const (
+	ClusterCoordinatorEtcd      = "etcd"
+	ClusterCoordinatorZookeeper = "zookeeper"
+	ClusterCoordinatorMySQL     = "mySQL"
 )

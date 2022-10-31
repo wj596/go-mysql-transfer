@@ -21,26 +21,30 @@ package dao
 import (
 	"encoding/binary"
 	"fmt"
-	"go-mysql-transfer/domain/constants"
 	"path/filepath"
 
+	gomysql "github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/juju/errors"
-	"github.com/siddontang/go-mysql/mysql"
 	"go.etcd.io/bbolt"
 
 	"go-mysql-transfer/config"
 	"go-mysql-transfer/dao/etcd"
+	"go-mysql-transfer/dao/mysql"
 	"go-mysql-transfer/dao/zookeeper"
 	"go-mysql-transfer/domain/bo"
+	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/util/fileutils"
 	"go-mysql-transfer/util/log"
 )
 
 const (
-	_storePath        = "db"
-	_fileMode         = 0600
-	_metadataFileName = "metadata.db"
+	_storePath            = "db"
+	_fileMode             = 0600
+	_metadataFileName     = "metadata.db"
+	_metadataTypeSource   = 1
+	_metadataTypeEndpoint = 2
+	_metadataTypePipeline = 3
 )
 
 var (
@@ -65,8 +69,8 @@ var (
 )
 
 type PositionDao interface {
-	Save(pipelineId uint64, pos mysql.Position) error
-	Get(pipelineId uint64) mysql.Position
+	Save(pipelineId uint64, pos gomysql.Position) error
+	Get(pipelineId uint64) gomysql.Position
 }
 
 type MachineDao interface {
@@ -85,7 +89,7 @@ type SourceDao interface {
 	Update(id uint64, version int32, data []byte) error
 	GetDataVersion(id uint64) (int32, error)
 	Get(id uint64) (*po.SourceInfo, error)
-	SelectAllNodeInfo() ([]*bo.NodeInfo, error)
+	SelectAllDataVersion() ([]*po.MetadataVersion, error)
 }
 
 type EndpointDao interface {
@@ -93,8 +97,8 @@ type EndpointDao interface {
 	Delete(id uint64) error
 	Update(id uint64, version int32, data []byte) error
 	GetDataVersion(id uint64) (int32, error)
-	Get(id uint64) (*po.EndpointInfo, int32, error)
-	SelectAll() ([]*po.EndpointInfo, error)
+	Get(id uint64) (*po.EndpointInfo, error)
+	SelectAllDataVersion() ([]*po.MetadataVersion, error)
 }
 
 type PipelineDao interface {
@@ -102,8 +106,8 @@ type PipelineDao interface {
 	Delete(id uint64) error
 	Update(entity *po.PipelineInfo, version int32) error
 	GetDataVersion(id uint64) (int32, error)
-	Get(id uint64) (*po.PipelineInfo, int32, error)
-	SelectAll() ([]*po.PipelineInfo, error)
+	Get(id uint64) (*po.PipelineInfo, error)
+	SelectAllDataVersion() ([]*po.MetadataVersion, error)
 }
 
 func Initialize(config *config.AppConfig) error {
@@ -115,32 +119,51 @@ func Initialize(config *config.AppConfig) error {
 	_compositeEndpointDao = &CompositeEndpointDao{}
 	_compositePipelineDao = &CompositePipelineDao{}
 
-	if config.IsZkUsed() {
-		if err := zookeeper.Initialize(config); err != nil {
-			return err
+	if config.IsCluster() { //集群
+		switch config.GetClusterCoordinator() {
+		case constants.ClusterCoordinatorEtcd:
+			//	if err := initEtcd(config); err != nil {
+			//		return err
+			//	}
+			//	_machineDao = &EtcdMachineDao{}
+			//	_metadataDao = &EtcdMetadataDao{}
+			//	_positionDao = &EtcdPositionDao{}
+			//	_stateDao = &EtcdStateDao{}
+		case constants.ClusterCoordinatorZookeeper:
+			if err := zookeeper.Initialize(config); err != nil {
+				return err
+			}
+			_machineDao = &zookeeper.MachineDaoImpl{}
+			_positionDao = zookeeper.NewPositionDao()
+			_stateDao = zookeeper.NewStateDao()
+			_remoteSourceDao = &zookeeper.SourceDaoImpl{}
+			_remoteEndpointDao = &zookeeper.EndpointDaoImpl{}
+			_remotePipelineDao = &zookeeper.PipelineDaoImpl{}
+		case constants.ClusterCoordinatorMySQL:
+			if err := mysql.Initialize(config); err != nil {
+				return err
+			}
+			_machineDao = &mysql.MachineDaoImpl{}
+			_positionDao = mysql.NewPositionDao()
+			_stateDao = mysql.NewStateDao()
+			_metadataDao := &mysql.MetadataDao{}
+			_remoteSourceDao = &mysql.SourceDaoImpl{
+				MetadataType: _metadataTypeSource,
+				MetadataDao:  _metadataDao,
+			}
+			_remoteEndpointDao = &mysql.EndpointDaoImpl{
+				MetadataType: _metadataTypeEndpoint,
+				MetadataDao:  _metadataDao,
+			}
+			_remotePipelineDao = &mysql.PipelineDaoImpl{
+				MetadataType: _metadataTypePipeline,
+				MetadataDao:  _metadataDao,
+			}
+		default:
+			return errors.New("请配置分布式协调器")
 		}
-		_machineDao = &zookeeper.MachineDaoImpl{}
-		_positionDao = zookeeper.NewPositionDao()
-		_stateDao = zookeeper.NewStateDao()
-		_remoteSourceDao = &zookeeper.SourceDaoImpl{}
-		_remoteEndpointDao = &zookeeper.EndpointDaoImpl{}
-		_remotePipelineDao = &zookeeper.PipelineDaoImpl{}
-	}
-
-	//if config.IsEtcdUsed() {
-	//	if err := initEtcd(config); err != nil {
-	//		return err
-	//	}
-	//	_machineDao = &EtcdMachineDao{}
-	//	_metadataDao = &EtcdMetadataDao{}
-	//	_positionDao = &EtcdPositionDao{}
-	//	_stateDao = &EtcdStateDao{}
-	//}
-
-	if _positionDao == nil {
+	} else {
 		_positionDao = &LocalPositionDao{}
-	}
-	if _stateDao == nil {
 		_stateDao = &LocalStateDao{}
 	}
 
@@ -149,14 +172,31 @@ func Initialize(config *config.AppConfig) error {
 
 // RefreshMetadata 刷新本地元数据
 func RefreshMetadata() {
-	remoteSourceNodes, err := _remoteSourceDao.SelectAllNodeInfo()
+	sources, err := _remoteSourceDao.SelectAllDataVersion()
 	if err != nil {
-		panic(fmt.Sprintf("刷新本地[SourceInfo]数据失败[%s]", err.Error()))
+		panic(fmt.Sprintf("刷新[SourceInfo]数据失败[%s]", err.Error()))
 	}
-	if err := _compositeSourceDao.refreshAll(remoteSourceNodes); err != nil {
-		panic(fmt.Sprintf("刷新本地[SourceInfo]元数据失败[%s]", err.Error()))
+	if err = _compositeSourceDao.refreshAll(sources); err != nil {
+		panic(fmt.Sprintf("刷新[SourceInfo]元数据失败[%s]", err.Error()))
 	}
 
+	var endpoints []*po.MetadataVersion
+	endpoints, err = _remoteEndpointDao.SelectAllDataVersion()
+	if err != nil {
+		panic(fmt.Sprintf("刷新[EndpointInfo]数据失败[%s]", err.Error()))
+	}
+	if err = _compositeEndpointDao.refreshAll(endpoints); err != nil {
+		panic(fmt.Sprintf("刷新[EndpointInfo]元数据失败[%s]", err.Error()))
+	}
+
+	var pipelines []*po.MetadataVersion
+	pipelines, err = _remotePipelineDao.SelectAllDataVersion()
+	if err != nil {
+		panic(fmt.Sprintf("刷新[PipelineInfo]数据失败[%s]", err.Error()))
+	}
+	if err = _compositePipelineDao.refreshAll(pipelines); err != nil {
+		panic(fmt.Sprintf("刷新[PipelineInfo]元数据失败[%s]", err.Error()))
+	}
 }
 
 func OnSyncEvent(event *bo.SyncEvent) {
@@ -164,14 +204,19 @@ func OnSyncEvent(event *bo.SyncEvent) {
 	case constants.SyncEventTypeSource:
 		err := _compositeSourceDao.refreshOne(event.Id, event.Version)
 		if err != nil {
-			log.Errorf("同步[SourceInfo]数据失败[%s]", err.Error())
+			log.Errorf("刷新[SourceInfo]数据失败[%s]", err.Error())
 		}
 	case constants.SyncEventTypeEndpoint:
-
+		err := _compositeEndpointDao.refreshOne(event.Id, event.Version)
+		if err != nil {
+			log.Errorf("刷新[EndpointInfo]数据失败[%s]", err.Error())
+		}
 	case constants.SyncEventTypePipeline:
-
+		err := _compositePipelineDao.refreshOne(event.Id, event.Version)
+		if err != nil {
+			log.Errorf("刷新[PipelineInfo]数据失败[%s]", err.Error())
+		}
 	}
-
 }
 
 func Close() {

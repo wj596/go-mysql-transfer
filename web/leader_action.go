@@ -37,6 +37,8 @@ func initLeaderAction(r *gin.RouterGroup) {
 
 func (s *LeaderAction) Heartbeat(c *gin.Context) {
 	node := c.Query("node")
+	println("service.GetLeaderService: ", service.GetLeaderService()==nil)
 	service.GetLeaderService().HandleHeartbeat(node)
+
 	c.Status(http.StatusOK)
 }

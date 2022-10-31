@@ -23,8 +23,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/siddontang/go-mysql/mysql"
-	"github.com/siddontang/go-mysql/schema"
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/schema"
 
 	"go-mysql-transfer/domain/bo"
 	"go-mysql-transfer/domain/po"

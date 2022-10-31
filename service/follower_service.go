@@ -20,8 +20,11 @@ package service
 
 import (
 	"fmt"
+	"net/http"
+	"sync"
 	"time"
 
+	"github.com/juju/errors"
 	"github.com/uber-go/atomic"
 
 	"go-mysql-transfer/config"
@@ -30,41 +33,36 @@ import (
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/util/httputils"
 	"go-mysql-transfer/util/log"
+	"go-mysql-transfer/util/stringutils"
 )
 
 const (
-	_heartbeatUrl = "http://%s/api/leaders/heartbeat?node=%s"
+	_heartbeatUrl = "http://%s/cluster/leaders/heartbeat?node=%s"
 )
 
 type FollowerService struct {
 	heartbeatTaskStarted    *atomic.Bool
 	heartbeatTaskStopSignal chan struct{}
-	heartbeatUrl            string
-	heartbeat               *httputils.Heartbeat
+	heartbeatLeader         string
+	heartbeatRequest        *http.Request
+	secretKey               string
+	lock                    sync.Mutex
 	eventQueue              chan interface{}
 	eventListenerStopSignal chan struct{}
 	eventListenerStarted    *atomic.Bool
 }
 
 func newFollowerService() *FollowerService {
-	url := fmt.Sprintf(_heartbeatUrl, GetLeader(), GetCurrNode())
-	return &FollowerService{
-		heartbeatUrl:            url,
-		heartbeat:               httputils.NewHeartbeat(url, config.GetIns().GetSecretKey()),
+	s := &FollowerService{
+		secretKey:               config.GetIns().GetSecretKey(),
 		heartbeatTaskStarted:    atomic.NewBool(false),
 		heartbeatTaskStopSignal: make(chan struct{}, 1),
 		eventQueue:              make(chan interface{}, 1024),
 		eventListenerStopSignal: make(chan struct{}, 1),
 		eventListenerStarted:    atomic.NewBool(false),
 	}
-}
-
-func (s *FollowerService) AcceptEvent(event interface{}) {
-	s.eventQueue <- event
-}
-
-func (s *FollowerService) handleSyncEvent(event *bo.SyncEvent) {
-	dao.OnSyncEvent(event)
+	s.heartbeatRequest = s.createHeartbeatRequest()
+	return s
 }
 
 func (s *FollowerService) startHeartbeatTask() {
@@ -80,17 +78,19 @@ func (s *FollowerService) startHeartbeatTask() {
 		for {
 			select {
 			case <-ticker.C:
-				err := s.heartbeat.Do()
+				err := s.doHeartbeat()
 				if err != nil {
-					log.Errorf("FollowerService心跳发送失败[%s], url[%s]", err.Error(), s.heartbeatUrl)
+					log.Errorf("FollowerService心跳发送失败[%s], url[%s]", err.Error(), s.heartbeatRequest.RequestURI)
 					failures.Add(1)
 					if failures.Load() > constants.HeartbeatFailureMaximum { //可能产生网络分区
-						if _stateService.existRunningRuntime() { //存在正在运行的观点
+						_leader.Store("")                        //情况主节点
+						if _stateService.existRunningRuntime() { //存在正在运行的管道
 							runtimes := _stateService.getRunningRuntimes()
 							for _, runtime := range runtimes {
 								serv, exist := getStreamService(runtime.PipelineId.Load())
 								if exist {
-									streamServicePanic(serv, "无法连接主节点")
+									log.Warnf("停止管道[%s]，当前集群无Leader节点", runtime.PipelineName)
+									streamServicePanic(serv, "无法连接Leader节点")
 								}
 							}
 						}
@@ -142,4 +142,62 @@ func (s *FollowerService) close() {
 		s.eventListenerStopSignal <- struct{}{}
 		s.eventListenerStarted.Store(false)
 	}
+}
+
+func (s *FollowerService) AcceptEvent(event interface{}) {
+	s.eventQueue <- event
+}
+
+func (s *FollowerService) handleSyncEvent(event *bo.SyncEvent) {
+	dao.OnSyncEvent(event)
+}
+
+func (s *FollowerService) createHeartbeatRequest() *http.Request {
+	leader := GetLeader()
+	url := fmt.Sprintf(_heartbeatUrl, leader, GetCurrNode())
+	request, _ := http.NewRequest(http.MethodGet, url, nil)
+	request.Header.Add("Content-type", "application/json;charset=UTF-8")
+	request.Header.Add("Cache-Control", "no-cache")
+	request.Header.Add("Connection", "Keep-Alive")
+	request.Header.Add("User-Agent", "go-mysql-transfer")
+	s.heartbeatLeader = leader
+	s.heartbeatRequest = request
+	return s.heartbeatRequest
+}
+
+func (s *FollowerService) getHeartbeatRequest() *http.Request {
+	if s.heartbeatLeader == GetLeader() {
+		return s.heartbeatRequest
+	}
+
+	s.lock.Lock()
+	s.createHeartbeatRequest()
+	s.lock.Unlock()
+
+	return s.heartbeatRequest
+}
+
+func (s *FollowerService) doHeartbeat() error {
+	if "" == GetLeader() {
+		log.Warn("心跳失败，当前集群无Leader节点")
+		return nil
+	}
+
+	timestamp := time.Now().UnixNano() / 1e6
+	sign := httputils.Sign(timestamp, s.secretKey)
+
+	request := s.getHeartbeatRequest()
+	request.Header.Add(httputils.HeaderParamTimestamp, stringutils.ToString(timestamp))
+	request.Header.Add(httputils.HeaderParamSign, sign)
+	response, err := httputils.Client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return errors.Errorf("Http请求失败,状态码[%d]", response.StatusCode)
+	}
+
+	return nil
 }

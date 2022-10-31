@@ -20,6 +20,7 @@ package config
 
 import (
 	"fmt"
+	"go-mysql-transfer/domain/constants"
 	"io/ioutil"
 	"log"
 	"path/filepath"
@@ -217,29 +218,29 @@ func (c *AppConfig) IsCluster() bool {
 	return true
 }
 
-func (c *AppConfig) IsZkUsed() bool {
-	if c.ClusterConf == nil {
-		return false
-	}
-	if c.ClusterConf.ZkAddrs == "" {
-		return false
-	}
-	return true
-}
-
-func (c *AppConfig) IsEtcdUsed() bool {
-	if c.ClusterConf == nil {
-		return false
-	}
-	if c.ClusterConf.EtcdAddrs == "" {
-		return false
-	}
-	return true
-}
-
 func (c *AppConfig) IsSmtpUsed() bool {
 	if c.SmtpConf == nil {
 		return false
 	}
 	return true
+}
+
+func (c *AppConfig) GetClusterCoordinator() string {
+	if c.ClusterConf == nil {
+		return ""
+	}
+
+	if c.ClusterConf.EtcdAddrs != "" {
+		return constants.ClusterCoordinatorEtcd
+	}
+
+	if c.ClusterConf.ZkAddrs != "" {
+		return constants.ClusterCoordinatorZookeeper
+	}
+
+	if c.ClusterConf.MySQLDataSourceName != "" {
+		return constants.ClusterCoordinatorMySQL
+	}
+
+	return ""
 }

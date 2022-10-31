@@ -31,6 +31,7 @@ import (
 	"go-mysql-transfer/dao/mysql"
 	"go-mysql-transfer/dao/path"
 	"go-mysql-transfer/dao/zookeeper"
+	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/util/etcdutils"
 	"go-mysql-transfer/util/log"
 )
@@ -39,8 +40,8 @@ const _electionNodeTTL = 2 //秒
 
 type ElectionService interface {
 	Elect() error
-	IsLeader() bool
-	GetLeader() string
+	IsElected() bool
+	GetCurrentLeader() string
 }
 
 type ZkElectionService struct {
@@ -59,11 +60,10 @@ type EtcdElectionService struct {
 }
 
 type MySqlElectionService struct {
-	renewalInterval int //续约周期（秒）
-	once            sync.Once
-	selected        *atomic.Bool
-	ensured         *atomic.Bool
-	leader          *atomic.String
+	once     sync.Once
+	lock     sync.Mutex
+	selected *atomic.Bool
+	leader   *atomic.String
 }
 
 //---------zk------------
@@ -165,11 +165,11 @@ func (s *ZkElectionService) downgrading() {
 	}
 }
 
-func (s *ZkElectionService) IsLeader() bool {
+func (s *ZkElectionService) IsElected() bool {
 	return s.selected.Load()
 }
 
-func (s *ZkElectionService) GetLeader() string {
+func (s *ZkElectionService) GetCurrentLeader() string {
 	return s.leader.Load()
 }
 
@@ -274,11 +274,11 @@ func (s *EtcdElectionService) onFollower(leader string) {
 	log.Infof("当前节点[%s]成为从节点,主节点为[%s]", GetCurrNode(), leader)
 }
 
-func (s *EtcdElectionService) IsLeader() bool {
+func (s *EtcdElectionService) IsElected() bool {
 	return s.selected.Load()
 }
 
-func (s *EtcdElectionService) GetLeader() string {
+func (s *EtcdElectionService) GetCurrentLeader() string {
 	return s.leader.Load()
 }
 
@@ -289,14 +289,19 @@ func (s *MySqlElectionService) Elect() error {
 	if err != nil {
 		return err
 	}
+
 	if affected > 0 {
 		s.onLeader()
 	} else {
-		leader, _, err := mysql.SelectLeader(s.renewalInterval)
+		leader, _, err := mysql.SelectLeader()
 		if err != nil {
 			return err
 		}
-		s.onFollower(leader)
+		if GetCurrNode() == leader {
+			s.onLeader()
+		} else {
+			s.onFollower(leader)
+		}
 	}
 
 	s.once.Do(func() {
@@ -322,28 +327,45 @@ func (s *MySqlElectionService) onFollower(leader string) {
 
 func (s *MySqlElectionService) startPreemptiveTask() {
 	go func() {
-		log.Info("启动Election节点监控")
-		ticker := time.NewTicker(time.Duration(s.renewalInterval) * time.Second)
+		log.Info("启动主节点抢占任务")
+		ticker := time.NewTicker(time.Duration(constants.MySQLPreemptiveInterval) * time.Second)
 		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ticker.C:
-				affected, err := mysql.UpdateElection(GetCurrNode())
-				if err != nil || affected <= 0 {
-					if s.selected.Load() {
+				if s.selected.Load() {
+					affected, err := mysql.UpdateElection(GetCurrNode())
+					if nil != err {
 						s.onFollower("")
+						log.Warnf("MySQL UpdateElection 错误[%s]", err.Error())
+					} else {
+						if affected == 0 { // 续约异常
+							confirm, _, _ := mysql.SelectLeader()
+							if s.leader.Load() != confirm {
+								log.Warnf("主节点续约失败，降级为从节点")
+								s.onFollower("")
+							}
+						} //else {
+							//println("主节点续约成功")
+						//}
 					}
-					s.Elect()
+				} else {
+					confirm, _, _ := mysql.SelectLeader()
+					if "" == confirm || s.leader.Load() != confirm {
+						log.Warnf("主节点异常尝试重新选举")
+						s.Elect()
+					}
 				}
 			}
 		}
 	}()
 }
 
-func (s *MySqlElectionService) IsLeader() bool {
+func (s *MySqlElectionService) IsElected() bool {
 	return s.selected.Load()
 }
 
-func (s *MySqlElectionService) GetLeader() string {
+func (s *MySqlElectionService) GetCurrentLeader() string {
 	return s.leader.Load()
 }

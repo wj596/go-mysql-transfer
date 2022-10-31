@@ -42,8 +42,8 @@ func initFollowerAction(r *gin.RouterGroup) {
 		stateService:    service.GetStateService(),
 	}
 
-	r.GET("followers/:pipelineId/runtime", s.GetRuntime)
-	r.POST("followers/handle-sync-event", s.HandleSyncEvent)
+	r.GET("/followers:pipelineId/runtime", s.GetRuntime)
+	r.POST("followers/event", s.HandleEvent)
 	r.PUT("followers/:pipelineId/start-stream", s.StartStream)
 	r.PUT("followers/:pipelineId/stop-stream", s.StopStream)
 	r.PUT("followers/:pipelineId/start-batch", s.StartBatch)
@@ -58,7 +58,7 @@ func (s *FollowerAction) GetRuntime(c *gin.Context) {
 	c.JSON(http.StatusOK, runtime)
 }
 
-func (s *FollowerAction) HandleSyncEvent(c *gin.Context) {
+func (s *FollowerAction) HandleEvent(c *gin.Context) {
 	vo := new(bo.SyncEvent)
 	if err := c.BindJSON(vo); err != nil {
 		log.Errorf("新增失败: %s", errors.ErrorStack(err))

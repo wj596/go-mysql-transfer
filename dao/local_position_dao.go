@@ -21,8 +21,8 @@ package dao
 import (
 	"encoding/json"
 
+	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/juju/errors"
-	"github.com/siddontang/go-mysql/mysql"
 	"go.etcd.io/bbolt"
 )
 

@@ -20,8 +20,8 @@ package web
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/juju/errors"
-	"github.com/siddontang/go-mysql/mysql"
 
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/vo"

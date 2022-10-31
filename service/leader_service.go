@@ -37,10 +37,10 @@ import (
 )
 
 const (
-	_sendSyncEventUrl      = "http://%s/api/followers/handle-sync-event"
-	_startStreamUrl        = "http://%s/api/followers/%d/start-stream"
-	_stopStreamUrl         = "http://%s/api/followers/%d/stop-stream"
-	_getFollowerRuntimeUrl = "http://%s/api/followers/%d/runtime"
+	_sendSyncEventUrl      = "http://%s/cluster/followers/vent"
+	_startStreamUrl        = "http://%s/cluster/followers/%d/start-stream"
+	_stopStreamUrl         = "http://%s/cluster/followers/%d/stop-stream"
+	_getFollowerRuntimeUrl = "http://%s/cluster/followers/%d/runtime"
 )
 
 type LeaderService struct {
@@ -151,7 +151,7 @@ func (s *LeaderService) StartStream(pipelineId uint64) error {
 		log.Error(err.Error())
 		return err
 	}
-	log.Infof("LeaderService在节点[%s]上启动管道[%s]", node, pipeline.Name)
+	log.Infof("管道[%s]调度到节点[%s]上", pipeline.Name, node)
 
 	if node == GetCurrNode() {
 		err = _pipelineInfoService.StartStream(pipelineId)

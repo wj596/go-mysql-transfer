@@ -10,7 +10,7 @@ func AuthFilter() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 		token := c.Request.Header.Get("Authorization")
-		if "/ui/auths/login" == path {
+		if "/console/auths/login" == path {
 			c.Next()
 			return
 		}

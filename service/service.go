@@ -21,11 +21,13 @@ package service
 import (
 	"fmt"
 
+	"github.com/juju/errors"
 	"go.uber.org/atomic"
 
 	"go-mysql-transfer/config"
 	"go-mysql-transfer/dao"
 	"go-mysql-transfer/domain/bo"
+	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/util/snowflake"
 )
 
@@ -109,24 +111,30 @@ func Initialize() error {
 			electionMonitorStopSignal: make(chan struct{}, 1),
 		}
 
-		if config.GetIns().IsZkUsed() {
+		switch config.GetIns().GetClusterCoordinator() {
+		case constants.ClusterCoordinatorEtcd:
+			_electionService = &EtcdElectionService{
+				ensured:  atomic.NewBool(false),
+				selected: atomic.NewBool(false),
+				leader:   atomic.NewString(""),
+			}
+		case constants.ClusterCoordinatorZookeeper:
 			_electionService = &ZkElectionService{
 				selected:         atomic.NewBool(false),
 				leader:           atomic.NewString(""),
 				connectingAmount: atomic.NewInt64(0),
 				downgraded:       atomic.NewBool(false),
 			}
-		}
-
-		if config.GetIns().IsEtcdUsed() {
-			_electionService = &EtcdElectionService{
-				ensured:  atomic.NewBool(false),
+		case constants.ClusterCoordinatorMySQL:
+			_electionService = &MySqlElectionService{
 				selected: atomic.NewBool(false),
 				leader:   atomic.NewString(""),
 			}
+		default:
+			return errors.New("请配置分布式协调器")
 		}
 
-		if err := _clusterService.startup(); err != nil {
+		if err = _clusterService.startup(); err != nil {
 			return err
 		}
 	} else { //单机

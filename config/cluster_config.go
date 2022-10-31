@@ -26,7 +26,7 @@ type ClusterConfig struct {
 	EtcdAddrs           string `yaml:"etcd_addrs"`
 	EtcdUser            string `yaml:"etcd_user"`
 	EtcdPassword        string `yaml:"etcd_password"`
-	MysqlDataSourceName string `yaml:"mysql_data_source_name"`
+	MySQLDataSourceName string `yaml:"mysql_data_source_name"`
 }
 
 func (c *ClusterConfig) GetBindIp() string {
@@ -53,6 +53,6 @@ func (c *ClusterConfig) GetEtcdPassword() string {
 	return c.EtcdPassword
 }
 
-func (c *ClusterConfig) GetMysqlDataSourceName() string {
-	return c.MysqlDataSourceName
+func (c *ClusterConfig) GetMySQLDataSourceName() string {
+	return c.MySQLDataSourceName
 }

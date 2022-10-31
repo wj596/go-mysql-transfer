@@ -20,16 +20,16 @@ package web
 
 import (
 	"fmt"
-	"go-mysql-transfer/datasource"
 	"strings"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
+	"github.com/go-mysql-org/go-mysql/schema"
 	"github.com/juju/errors"
-	"github.com/siddontang/go-mysql/schema"
 	"github.com/yuin/gopher-lua"
 	"github.com/yuin/gopher-lua/parse"
 
+	"go-mysql-transfer/datasource"
 	"go-mysql-transfer/domain/bo"
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
@@ -71,7 +71,7 @@ func (s *PipelineInfoAction) Insert(c *gin.Context) {
 		return
 	}
 
-	if err := s.validate(vo, false); err != nil {
+	if err := s.validate(vo, constants.OperationInsert); err != nil {
 		log.Errorf("新增失败: %s", errors.ErrorStack(err))
 		Err400(c, err.Error())
 		return
@@ -102,7 +102,7 @@ func (s *PipelineInfoAction) Update(c *gin.Context) {
 		return
 	}
 
-	if err := s.validate(vo, true); err != nil {
+	if err := s.validate(vo, constants.OperationUpdate); err != nil {
 		log.Errorf("更新失败: %s", errors.ErrorStack(err))
 		Err400(c, err.Error())
 		return
@@ -239,32 +239,34 @@ func (s *PipelineInfoAction) SelectRules(c *gin.Context) {
 	RespData(c, rules)
 }
 
-func (s *PipelineInfoAction) validate(pipeline *vo.PipelineInfoVO, update bool) error {
+func (s *PipelineInfoAction) validate(entity *vo.PipelineInfoVO, operation int) error {
 	params := vo.NewPipelineInfoParams()
-	params.Name = pipeline.Name
-	exist, _ := s.service.GetByParam(params)
-	if !update {
-		if exist != nil {
-			return errors.Errorf("存在名称为[%s]的通道，请更换", pipeline.Name)
+	params.Name = entity.Name
+	sameName, _ := s.service.GetByParam(params)
+	if nil != sameName {
+		if constants.OperationInsert == operation {
+			return errors.Errorf("存在名称为[%s]的通道，请更换", entity.Name)
 		}
-		params.Name = ""
-		params.SourceId = pipeline.SourceId
-		params.EndpointId = pipeline.EndpointId
-		entity, _ := s.service.GetByParam(params)
-		if entity != nil {
-			vvo := new(vo.PipelineInfoVO)
-			vvo.FromPO(entity)
-			s.padding(vvo)
-			return errors.Errorf("存在数据源为'%s'，接收端点为'%s'的通道，无需重复创建", vvo.SourceName, vvo.EndpointName)
-		}
-	} else {
-		if exist != nil && exist.Id != pipeline.Id {
-			return errors.Errorf("存在名称为[%s]的通道，请更换", pipeline.Name)
+		if constants.OperationUpdate == operation && sameName.Id != entity.Id {
+			return errors.Errorf("存在名称为[%s]的通道，请更换", entity.Name)
 		}
 	}
 
-	if pipeline.AlarmMailList != "" {
-		mails := strings.Split(pipeline.AlarmMailList, ",")
+	params.Name = ""
+	params.SourceId = entity.SourceId
+	params.EndpointId = entity.EndpointId
+	sameEndpoint, _ := s.service.GetByParam(params)
+	if nil != sameEndpoint {
+		if constants.OperationInsert == operation {
+			return errors.Errorf("存在数据源为'%s'，接收端点为'%s'的通道，无需重复创建", entity.SourceName, entity.EndpointName)
+		}
+		if constants.OperationUpdate == operation && sameName.Id != entity.Id {
+			return errors.Errorf("存在数据源为'%s'，接收端点为'%s'的通道，无需重复创建", entity.SourceName, entity.EndpointName)
+		}
+	}
+
+	if "" != entity.AlarmMailList {
+		mails := strings.Split(entity.AlarmMailList, ",")
 		for _, mail := range mails {
 			if !govalidator.IsEmail(mail) {
 				return errors.Errorf("'告警邮箱地址'中存在不合规的邮箱地址[%s]", mail)
@@ -272,9 +274,9 @@ func (s *PipelineInfoAction) validate(pipeline *vo.PipelineInfoVO, update bool) 
 		}
 	}
 
-	if pipeline.AlarmWebhook != "" {
-		if !govalidator.IsURL(pipeline.AlarmWebhook) {
-			return errors.Errorf("'告警钉钉Webhook地址'不是有效的URL地址[%s]", pipeline.AlarmWebhook)
+	if "" != entity.AlarmWebhook {
+		if !govalidator.IsURL(entity.AlarmWebhook) {
+			return errors.Errorf("'告警钉钉Webhook地址'不是有效的URL地址[%s]", entity.AlarmWebhook)
 		}
 	}
 
@@ -484,6 +486,7 @@ func (s *PipelineInfoAction) padding(v *vo.PipelineInfoVO) {
 	if source, err := s.sourceService.Get(v.SourceId); err == nil {
 		v.SourceName = fmt.Sprintf("%s[%s:%d]", source.Name, source.Host, source.Port)
 	}
+	println("v.EndpointId", v.EndpointId)
 	if endpoint, err := s.endpointService.Get(v.EndpointId); err == nil {
 		v.EndpointName = fmt.Sprintf("%s[%s %s]", endpoint.Name, constants.GetEndpointTypeName(endpoint.Type), endpoint.Addresses)
 	}

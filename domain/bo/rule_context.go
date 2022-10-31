@@ -26,9 +26,9 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/schema"
 	"github.com/juju/errors"
-	"github.com/siddontang/go-mysql/mysql"
-	"github.com/siddontang/go-mysql/schema"
 	"github.com/yuin/gopher-lua"
 	"github.com/yuin/gopher-lua/parse"
 

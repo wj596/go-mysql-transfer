@@ -38,48 +38,28 @@ var _server *http.Server
 func Initialize() error {
 	gin.SetMode(gin.ReleaseMode)
 	handler := gin.New()
+	handler.Use(filter.CorsFilter())
+	setStatics(handler)
+
+	// admin 模块
 	{
-
-		//handler.Use(filter.CorsFilter())
-		//handler.LoadHTMLFiles(fileutils.GetCurrentDirectory()+"/ui/index.html")
-		//handler.StaticFile("/favicon.ico", fileutils.GetCurrentDirectory()+"/ui/favicon.ico")
-		//handler.StaticFile("/_app.config.js", fileutils.GetCurrentDirectory()+"/ui/_app.config.js")
-		//handler.StaticFS("/assets", http.Dir(fileutils.GetCurrentDirectory()+"/ui/assets"))
-		//handler.StaticFS("/resource", http.Dir(fileutils.GetCurrentDirectory()+"/ui/resource"))
-		//handler.GET("/", func(c *gin.Context) {
-		//	c.HTML(http.StatusOK, "index.html", gin.H{})
-		//})
-
-		handler.Use(filter.CorsFilter())
-		handler.LoadHTMLFiles("D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\index.html")
-		handler.StaticFile("/favicon.ico", "D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\favicon.ico")
-		handler.StaticFile("/_app.config.js", "D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\_app.config.js")
-		handler.StaticFS("/assets", http.Dir("D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\assets"))
-		handler.StaticFS("/resource", http.Dir("D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\resource"))
-		handler.GET("/", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "index.html", gin.H{})
-		})
-
-
+		admin := handler.Group("/console")
+		admin.Use(filter.AuthFilter())
+		initAuthAction(admin)
+		initSourceInfoAction(admin)
+		initEndpointInfoAction(admin)
+		initPipelineInfoAction(admin)
+		initRunningAction(admin)
+		initClusterAction(admin)
+		initDashboardAction(admin)
 	}
 
-	ui := handler.Group("/ui")
-	ui.Use(filter.AuthFilter())
+	// 集群模块
 	{
-		initAuthAction(ui)
-		initSourceInfoAction(ui)
-		initEndpointInfoAction(ui)
-		initPipelineInfoAction(ui)
-		initRunningAction(ui)
-		initClusterAction(ui)
-		initDashboardAction(ui)
-	}
-
-	api := handler.Group("/api")
-	api.Use(filter.SignFilter())
-	{
-		initLeaderAction(api)
-		initFollowerAction(api)
+		cluster := handler.Group("/cluster")
+		cluster.Use(filter.SignFilter())
+		initLeaderAction(cluster)
+		initFollowerAction(cluster)
 	}
 
 	port := config.GetIns().GetWebPort()
@@ -104,6 +84,27 @@ func Initialize() error {
 	}()
 
 	return nil
+}
+
+func setStatics(handler *gin.Engine) {
+	//current := fileutils.GetCurrentDirectory()
+	//handler.LoadHTMLFiles(current + "/console/index.html")
+	//handler.StaticFile("/favicon.ico", current+"/console/favicon.ico")
+	//handler.StaticFile("/_app.config.js", current+"/console/_app.config.js")
+	//handler.StaticFS("/assets", http.Dir(current+"/console/assets"))
+	//handler.StaticFS("/resource", http.Dir(current+"/console/resource"))
+	//handler.GET("/", func(c *gin.Context) {
+	//	c.HTML(http.StatusOK, "index.html", gin.H{})
+	//})
+
+	handler.LoadHTMLFiles("D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\index.html")
+	handler.StaticFile("/favicon.ico", "D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\favicon.ico")
+	handler.StaticFile("/_app.config.js", "D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\_app.config.js")
+	handler.StaticFS("/assets", http.Dir("D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\assets"))
+	handler.StaticFS("/resource", http.Dir("D:\\dev\\nodejs\\workspace\\go-mysql-transfer-ui\\dist\\resource"))
+	handler.GET("/", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "index.html", gin.H{})
+	})
 }
 
 func Err400(c *gin.Context, message string) {

@@ -23,7 +23,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go-mysql-transfer/dao/path"
-	"go-mysql-transfer/domain/bo"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/util/gziputils"
 	"go-mysql-transfer/util/log"
@@ -95,7 +94,7 @@ func (s *SourceDaoImpl) Get(id uint64) (*po.SourceInfo, error) {
 	return &entity, nil
 }
 
-func (s *SourceDaoImpl) SelectAllNodeInfo() ([]*bo.NodeInfo, error) {
+func (s *SourceDaoImpl) SelectAllDataVersion() ([]*po.MetadataVersion, error) {
 	root := path.GetSourceMetadataRoot()
 	keys, _, err := _connection.Children(root)
 	if err != nil {
@@ -103,7 +102,7 @@ func (s *SourceDaoImpl) SelectAllNodeInfo() ([]*bo.NodeInfo, error) {
 		return nil, err
 	}
 
-	ls := make([]*bo.NodeInfo, 0)
+	ls := make([]*po.MetadataVersion, 0)
 	for _, key := range keys {
 		node := path.GetSourceMetadataRoot() + "/" + key
 		_, stat, err := _connection.Exists(node)
@@ -111,7 +110,7 @@ func (s *SourceDaoImpl) SelectAllNodeInfo() ([]*bo.NodeInfo, error) {
 			return nil, err
 		}
 
-		ls = append(ls, &bo.NodeInfo{
+		ls = append(ls, &po.MetadataVersion{
 			Id:      stringutils.ToUint64Safe(key),
 			Version: stat.Version,
 		})

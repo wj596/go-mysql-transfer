@@ -21,7 +21,7 @@ package etcd
 import (
 	"sync"
 
-	"github.com/siddontang/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/mysql"
 )
 
 type EtcdPositionDao struct {

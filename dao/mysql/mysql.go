@@ -24,6 +24,7 @@ import (
 	"xorm.io/core"
 
 	"go-mysql-transfer/config"
+	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/logagent"
 )
@@ -38,6 +39,7 @@ const (
 		" LEADER = IF ( TIMESTAMPDIFF(SECOND, LAST_ACTIVE, NOW()) > 2, VALUES ( LEADER ), LEADER )," +
 		" LAST_ACTIVE = IF ( LEADER = VALUES ( LEADER ), VALUES ( LAST_ACTIVE ), LAST_ACTIVE )"
 	_selectLeaderSql = "SELECT LEADER FROM T_ELECTION WHERE CLUSTER = ? AND TIMESTAMPDIFF(SECOND, LAST_ACTIVE, NOW()) <= ?"
+	_selectDiffSql   = "SELECT TIMESTAMPDIFF(SECOND, LAST_ACTIVE, NOW()) FROM T_ELECTION WHERE CLUSTER = ?"
 )
 
 var (
@@ -46,7 +48,7 @@ var (
 
 func Initialize(config *config.AppConfig) error {
 	mysql.SetLogger(&logagent.MysqlLoggerAgent{})
-	dataSourceName := config.GetClusterConfig().GetMysqlDataSourceName()
+	dataSourceName := config.GetClusterConfig().GetMySQLDataSourceName()
 	orm, err := xorm.NewEngine(_driverName, dataSourceName)
 	if err != nil {
 		return err
@@ -70,7 +72,7 @@ func Initialize(config *config.AppConfig) error {
 		orm.ShowSQL(false)
 	default:
 		orm.SetLogLevel(core.LOG_DEBUG)
-		orm.ShowSQL(true)
+		//	orm.ShowSQL(true)
 	}
 
 	_orm = orm
@@ -102,9 +104,9 @@ func UpdateElection(node string) (int64, error) {
 	return aff, nil
 }
 
-func SelectLeader(renewInterval int) (string, bool, error) {
+func SelectLeader() (string, bool, error) {
 	var leader string
-	exist, err := _orm.SQL(_selectLeaderSql, _clusterName, renewInterval).Get(&leader)
+	exist, err := _orm.SQL(_selectLeaderSql, _clusterName, constants.MySQLPreemptiveInterval).Get(&leader)
 	if err != nil {
 		return "", false, err
 	}
@@ -112,4 +114,13 @@ func SelectLeader(renewInterval int) (string, bool, error) {
 		return "", false, nil
 	}
 	return leader, true, nil
+}
+
+func SelectDiff() (int, error) {
+	var diff int
+	_, err := _orm.SQL(_selectDiffSql, _clusterName).Get(&diff)
+	if err != nil {
+		return 0, err
+	}
+	return diff, nil
 }

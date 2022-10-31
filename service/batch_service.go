@@ -24,9 +24,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-mysql-org/go-mysql/canal"
+	"github.com/go-mysql-org/go-mysql/schema"
 	"github.com/juju/errors"
-	"github.com/siddontang/go-mysql/canal"
-	"github.com/siddontang/go-mysql/schema"
 	"github.com/yuin/gopher-lua"
 	"go.uber.org/atomic"
 

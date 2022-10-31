@@ -25,6 +25,7 @@ import (
 	"go-mysql-transfer/dao/path"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/util/gziputils"
+	"go-mysql-transfer/util/log"
 	"go-mysql-transfer/util/stringutils"
 	"go-mysql-transfer/util/zkutils"
 )
@@ -161,29 +162,30 @@ func (s *PipelineDaoImpl) GetDataVersion(id uint64) (int32, error) {
 	return 0, nil
 }
 
-func (s *PipelineDaoImpl) Get(id uint64) (*po.PipelineInfo, int32, error) {
+func (s *PipelineDaoImpl) Get(id uint64) (*po.PipelineInfo, error) {
 	ruleParentNode := path.CreateRuleMetadataParentPath(id)
 	ruleIds, _, err := _connection.Children(ruleParentNode)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	rules := make([]*po.Rule, len(ruleIds))
 	for _, ruleId := range ruleIds {
 		node := path.CreateRuleMetadataItemPath(id, ruleId)
-		temp, _, err := _connection.Get(node)
+		var temp []byte
+		temp, _, err = _connection.Get(node)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		var data []byte
 		data, err = gziputils.UnZip(temp)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		var rule po.Rule
 		err = proto.Unmarshal(data, &rule)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		rules = append(rules, &rule)
 	}
@@ -191,25 +193,46 @@ func (s *PipelineDaoImpl) Get(id uint64) (*po.PipelineInfo, int32, error) {
 	node := path.CreatePipelineMetadataPath(id)
 	temp, stat, err := _connection.Get(node)
 	if err != nil {
-		return nil, stat.Version, err
+		return nil, err
 	}
 
 	var data []byte
 	data, err = gziputils.UnZip(temp)
 	if err != nil {
-		return nil, stat.Version, err
+		return nil, err
 	}
 
 	var entity po.PipelineInfo
 	err = proto.Unmarshal(data, &entity)
 	if err != nil {
-		return nil, stat.Version, err
+		return nil, err
 	}
+	entity.DataVersion = stat.Version
 
-	return &entity, stat.Version, nil
+	return &entity, nil
 }
 
-func (s *PipelineDaoImpl) SelectAll() ([]*po.PipelineInfo, error) {
-	var ls []*po.PipelineInfo
+func (s *PipelineDaoImpl) SelectAllDataVersion() ([]*po.MetadataVersion, error) {
+	root := path.GetPipelineMetadataRoot()
+	keys, _, err := _connection.Children(root)
+	if err != nil {
+		log.Errorf("查询所有[PipelineInfo]节点失败[%s]", err.Error())
+		return nil, err
+	}
+
+	ls := make([]*po.MetadataVersion, 0)
+	for _, key := range keys {
+		node := path.GetPipelineMetadataRoot() + "/" + key
+		_, stat, err := _connection.Exists(node)
+		if err != nil {
+			return nil, err
+		}
+
+		ls = append(ls, &po.MetadataVersion{
+			Id:      stringutils.ToUint64Safe(key),
+			Version: stat.Version,
+		})
+	}
+
 	return ls, nil
 }

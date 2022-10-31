@@ -25,6 +25,8 @@ import (
 	"go-mysql-transfer/dao/path"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/util/gziputils"
+	"go-mysql-transfer/util/log"
+	"go-mysql-transfer/util/stringutils"
 )
 
 type EndpointDaoImpl struct {
@@ -69,29 +71,50 @@ func (s *EndpointDaoImpl) GetDataVersion(id uint64) (int32, error) {
 	return 0, nil
 }
 
-func (s *EndpointDaoImpl) Get(id uint64) (*po.EndpointInfo, int32, error) {
+func (s *EndpointDaoImpl) Get(id uint64) (*po.EndpointInfo, error) {
 	node := path.CreateEndpointMetadataPath(id)
 	temp, stat, err := _connection.Get(node)
 	if err != nil {
-		return nil, stat.Version, err
+		return nil, err
 	}
 
 	var data []byte
 	data, err = gziputils.UnZip(temp)
 	if err != nil {
-		return nil, stat.Version, err
+		return nil, err
 	}
 
 	var entity po.EndpointInfo
 	err = proto.Unmarshal(data, &entity)
 	if err != nil {
-		return nil, stat.Version, err
+		return nil, err
 	}
+	entity.DataVersion = stat.Version
 
-	return &entity, stat.Version, nil
+	return &entity, nil
 }
 
-func (s *EndpointDaoImpl) SelectAll() ([]*po.EndpointInfo, error) {
-	var ls []*po.EndpointInfo
+func (s *EndpointDaoImpl) SelectAllDataVersion() ([]*po.MetadataVersion, error) {
+	root := path.GetEndpointMetadataRoot()
+	keys, _, err := _connection.Children(root)
+	if err != nil {
+		log.Errorf("查询所有[EndpointInfo]节点失败[%s]", err.Error())
+		return nil, err
+	}
+
+	ls := make([]*po.MetadataVersion, 0)
+	for _, key := range keys {
+		node := path.GetEndpointMetadataRoot() + "/" + key
+		_, stat, err := _connection.Exists(node)
+		if err != nil {
+			return nil, err
+		}
+
+		ls = append(ls, &po.MetadataVersion{
+			Id:      stringutils.ToUint64Safe(key),
+			Version: stat.Version,
+		})
+	}
+
 	return ls, nil
 }

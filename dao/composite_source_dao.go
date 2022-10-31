@@ -19,9 +19,6 @@
 package dao
 
 import (
-	"go-mysql-transfer/domain/bo"
-	"go-mysql-transfer/util/byteutils"
-	"go-mysql-transfer/util/log"
 	"strings"
 
 	"github.com/juju/errors"
@@ -31,6 +28,8 @@ import (
 	"go-mysql-transfer/domain/constants"
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/domain/vo"
+	"go-mysql-transfer/util/byteutils"
+	"go-mysql-transfer/util/log"
 )
 
 type CompositeSourceDao struct {
@@ -47,7 +46,7 @@ func (s *CompositeSourceDao) Save(entity *po.SourceInfo) error {
 }
 
 func (s *CompositeSourceDao) CascadeInsert(entity *po.SourceInfo) error {
-	return _local.Update(func(tx *bbolt.Tx) error {
+	err := _local.Update(func(tx *bbolt.Tx) error {
 		data, err := proto.Marshal(entity)
 		if err != nil {
 			return err
@@ -59,8 +58,17 @@ func (s *CompositeSourceDao) CascadeInsert(entity *po.SourceInfo) error {
 		}
 
 		err = _remoteSourceDao.Insert(entity.Id, data)
-		return err
+		if err != nil {
+			return err
+		}
+
+		return nil
 	})
+
+	if nil == err {
+		log.Infof("CascadeInsert SourceInfo[%s]", entity.Name)
+	}
+	return err
 }
 
 func (s *CompositeSourceDao) CascadeUpdate(entity *po.SourceInfo) (int32, error) {
@@ -88,6 +96,8 @@ func (s *CompositeSourceDao) CascadeUpdate(entity *po.SourceInfo) (int32, error)
 	if err != nil {
 		return version, err
 	}
+
+	log.Infof("CascadeUpdate SourceInfo[%s], Version[%d]", entity.Name, version)
 	return entity.DataVersion, nil
 }
 
@@ -98,13 +108,18 @@ func (s *CompositeSourceDao) Delete(id uint64) error {
 }
 
 func (s *CompositeSourceDao) CascadeDelete(id uint64) error {
-	return _local.Update(func(tx *bbolt.Tx) error {
+	err := _local.Update(func(tx *bbolt.Tx) error {
 		err := tx.Bucket(_sourceBucket).Delete(marshalId(id))
 		if err != nil {
 			return err
 		}
 		return _remoteSourceDao.Delete(id)
 	})
+
+	if nil == err {
+		log.Infof("CascadeDelete SourceInfo[%d]", id)
+	}
+	return err
 }
 
 func (s *CompositeSourceDao) Get(id uint64) (*po.SourceInfo, error) {
@@ -166,34 +181,67 @@ func (s *CompositeSourceDao) SelectAllIdList() ([]uint64, error) {
 	return ids, err
 }
 
-func (s *CompositeSourceDao) refreshAll(remoteNodes []*bo.NodeInfo) error {
-	localIds := make([]uint64, 0)
+func (s *CompositeSourceDao) refreshAll(standards []*po.MetadataVersion) error {
+	locals := make([]uint64, 0)
 	_local.View(func(tx *bbolt.Tx) error {
 		bt := tx.Bucket(_sourceBucket)
 		cursor := bt.Cursor()
 		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
-			localIds = append(localIds, byteutils.BytesToUint64(k))
+			locals = append(locals, byteutils.BytesToUint64(k))
 		}
 		return nil
 	})
 
-	delIds := make([]uint64, 0)
-	for _, localId := range localIds {
+	deletions := make([]uint64, 0)
+	for _, id := range locals {
 		isRemove := true
-		for _, remote := range remoteNodes {
-			if localId == remote.Id {
+		for _, standard := range standards {
+			if id == standard.Id {
 				isRemove = false
 				break
 			}
 		}
 		if isRemove {
-			delIds = append(delIds, localId)
+			deletions = append(deletions, id)
 		}
 	}
+	log.Infof("刷新[SourceInfo]数据, 需删除本地数据[%d]条", len(deletions))
+
+	updates := make([]*po.SourceInfo, 0)
+	for _, standard := range standards {
+		version := int32(-1)
+		entity, _ := s.Get(standard.Id)
+		if nil != entity && entity.DataVersion >= standard.Version {
+			log.Infof("忽略刷新[SourceInfo]数据[1]条，名称[%s]， 本地数据版本[%d]，远程数据版本[%d]", entity.Name, entity.DataVersion, standard.Version)
+			continue
+		}
+
+		if nil != entity {
+			version = entity.DataVersion
+		}
+
+		standardEntity, err := _remoteSourceDao.Get(standard.Id)
+		if err != nil {
+			return err
+		}
+		log.Infof("刷新[SourceInfo]数据[1]条，名称[%s]， 本地数据版本[%d]，远程数据版本[%d]", standardEntity.Name, version, standard.Version)
+		updates = append(updates, standardEntity)
+	}
+
 	err := _local.Update(func(tx *bbolt.Tx) error {
 		bt := tx.Bucket(_sourceBucket)
-		for _, delId := range delIds {
-			if err := bt.Delete(marshalId(delId)); err != nil {
+		for _, deletion := range deletions {
+			if err := bt.Delete(marshalId(deletion)); err != nil {
+				return err
+			}
+		}
+		for _, update := range updates {
+			data, err := proto.Marshal(update)
+			if err != nil {
+				return err
+			}
+			err = tx.Bucket(_sourceBucket).Put(marshalId(update.Id), data)
+			if err != nil {
 				return err
 			}
 		}
@@ -203,58 +251,35 @@ func (s *CompositeSourceDao) refreshAll(remoteNodes []*bo.NodeInfo) error {
 		return err
 	}
 
-	counter := 0
-	for _, remoteNode := range remoteNodes {
-		var localEntity *po.SourceInfo
-		localEntity, _ = s.Get(remoteNode.Id)
-		if nil != localEntity && localEntity.DataVersion >= remoteNode.Version {
-			log.Infof("忽略刷新本地[SourceInfo]数据[1]条, id[%d], 名称[%s], 数据版本[%d:%d]", remoteNode.Id, localEntity.Name, localEntity.DataVersion, remoteNode.Version)
-			continue
-		}
-
-		var remoteEntity *po.SourceInfo
-		remoteEntity, err = _remoteSourceDao.Get(remoteNode.Id)
-		if err != nil {
-			return err
-		}
-		log.Infof("刷新本地[SourceInfo]数据[1]条, id[%d], 名称[%s], 数据版本[%d:%d]", remoteNode.Id, localEntity.Name, localEntity.DataVersion, remoteNode.Version)
-		if err = s.Save(remoteEntity); err != nil {
-			return err
-		}
-		counter++
-	}
-
-	log.Infof("共刷新本地[SourceInfo]数据[%d]条", counter)
-
+	log.Infof("共刷新[SourceInfo]数据[%d]条", len(deletions)+len(updates))
 	return nil
 }
 
-func (s *CompositeSourceDao) refreshOne(id uint64, currentVersion int32) error {
-	remoteEntity, err := _remoteSourceDao.Get(id)
+func (s *CompositeSourceDao) refreshOne(id uint64, standardVersion int32) error {
+	standardEntity, err := _remoteSourceDao.Get(id)
 	if err != nil {
 		return err
 	}
-	remoteExist := false
-	if nil != remoteEntity {
-		remoteExist = true
+
+	version := int32(-1)
+	var entity *po.SourceInfo
+	entity, err = s.Get(id)
+	if err != nil {
+		return err
+	}
+	if nil != entity {
+		version = entity.DataVersion
 	}
 
-	localExist := false
-	localVersion := int32(-1)
-	localEntity, _ := s.Get(id)
-	if nil != localEntity {
-		localExist = true
-		localVersion = localEntity.DataVersion
-	}
-
-	if !remoteExist && localExist {
-		log.Infof("删除本地[SourceInfo]数据[1]条, id[%d], 名称[%s], 数据版本[%d]", id, localEntity.Name, currentVersion)
+	//远程为空，本地为空，删除本地
+	if nil == standardEntity && nil != entity {
+		log.Infof("删除[SourceInfo]数据[1]条，名称[%s], 数据版本[%d]", entity.Name, entity.DataVersion)
 		return s.Delete(id)
 	}
 
-	if remoteExist && localVersion < currentVersion {
-		log.Infof("刷新本地[SourceInfo]数据[1]条, id[%d], 名称[%s], 数据版本[%d-%d]", id, remoteEntity.Name, localVersion, currentVersion)
-		return s.Save(remoteEntity)
+	if nil != standardEntity && version < standardVersion {
+		log.Infof("刷新[SourceInfo]数据[1]条，名称[%s]， 本地数据版本[%d]，远程数据版本[%d]", id, standardEntity.Name, version, standardEntity.DataVersion)
+		return s.Save(standardEntity)
 	}
 
 	return nil

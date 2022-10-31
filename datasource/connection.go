@@ -22,8 +22,8 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/go-mysql-org/go-mysql/canal"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/siddontang/go-mysql/canal"
 
 	"go-mysql-transfer/domain/po"
 	"go-mysql-transfer/util/log"

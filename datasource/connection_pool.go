@@ -21,7 +21,7 @@ package datasource
 import (
 	"sync"
 
-	"github.com/siddontang/go-mysql/canal"
+	"github.com/go-mysql-org/go-mysql/canal"
 
 	"go-mysql-transfer/domain/po"
 )

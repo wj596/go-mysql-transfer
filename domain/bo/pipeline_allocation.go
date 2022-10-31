@@ -18,7 +18,9 @@
 
 package bo
 
-import "sync"
+import (
+	"sync"
+)
 
 type PipelineAllocation struct {
 	maps map[string][]uint64
