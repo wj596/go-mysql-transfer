@@ -99,8 +99,7 @@ func (s *StockService) Run() error {
 	s.endpoint = endpoint
 
 	startTime := dates.NowMillisecond()
-	log.Println(fmt.Sprintf("bulk size: %d", global.Cfg().BulkSize))
-
+	log.Printf("bulk size: %d", global.Cfg().BulkSize)
 
 	taskChan := make(chan *Task,0)
 	resultChan := make(chan *Result,0)
@@ -164,7 +163,7 @@ func (s *StockService) Run() error {
 			if err != nil {
 				return err
 			}
-			log.Println(fmt.Sprintf("minId:%d,maxId,%d", minId, maxId))
+			log.Println(fmt.Sprintf("minId:%d,maxId:%d", minId, maxId))
 			start := minId - 1
 			end := maxId
 			//res, err := s.canal.Execute(fmt.Sprintf("select count(1) from %s", fullName))
@@ -200,7 +199,6 @@ func (s *StockService) Run() error {
 		close(resultChan)
 	}()
 	for r := range resultChan{
-		//fmt.Println(fmt.Sprintf("表： %s，导入：%d 条", r.fullName, r.count))
 		if _,ok := s.counter[r.fullName];ok{
 			s.counter[r.fullName] += r.count
 		}else{
@@ -210,10 +208,10 @@ func (s *StockService) Run() error {
 	}
 
 
-	log.Println(fmt.Sprintf("共耗时 ：%d（毫秒）", dates.NowMillisecond()-startTime))
+	log.Printf("共耗时 ：%d（毫秒）", dates.NowMillisecond()-startTime)
 
 	for k, v := range s.counter {
-		log.Printf("表:%s 共导入 %d条====",k,v)
+		log.Printf("表:%s 共导入 %d条",k,v)
 	}
 
 	s.endpoint.Close() // 关闭客户端
