@@ -141,7 +141,7 @@ func (s *StockService) Run() error {
 			log.Println(fmt.Sprintf("开始导出 %s", fullName))
 			i := rule.TableInfo.PKColumns[0]
 			pk := rule.TableInfo.GetPKColumn(i).Name
-			//这里写死 主键为自增id
+			//pk为表的自增id列 整数型
 			minSql := fmt.Sprintf("select min(%s) as min_id from %s", pk, fullName)
 			log.Println(fmt.Sprintf("minSql %s", minSql))
 			maxSql := fmt.Sprintf("select max(%s) as max_id from %s", pk, fullName)
