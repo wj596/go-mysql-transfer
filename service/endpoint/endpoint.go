@@ -309,9 +309,9 @@ func oldRowMap(req *model.RowRequest, rule *global.Rule, primitive bool) map[str
 // primaryKey 自适应获取主键
 func primaryKey(re *model.RowRequest, rule *global.Rule) interface{} {
 	if rule.IsCompositeKey {
-		vList := make([]string, 0)
+		vList := make([]string, len(rule.TableInfo.PKColumns))
 		for _, index := range rule.TableInfo.PKColumns {
-			vList = append(vList, stringutil.ToString(re.Row[index]))
+			vList[index] = stringutil.ToString(re.Row[index])
 		}
 		return strings.Join(vList, "_")
 	}
