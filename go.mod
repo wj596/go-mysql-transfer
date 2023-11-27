@@ -10,7 +10,7 @@ require (
 	github.com/go-redis/redis v6.15.8+incompatible
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/jmoiron/sqlx v1.2.0 // indirect
-	github.com/json-iterator/go v1.1.9
+	github.com/json-iterator/go v1.1.12
 	github.com/juju/errors v0.0.0-20200330140219-3fe23663418f
 	github.com/juju/testing v0.0.0-20200706033705-4c23f9c453cd // indirect
 	github.com/layeh/gopher-json v0.0.0-20190114024228-97fed8db8427
